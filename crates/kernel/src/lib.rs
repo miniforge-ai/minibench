@@ -64,6 +64,123 @@ pub fn summarize(snapshot: &WorkbenchSnapshotV1) -> RunSummary {
     summary
 }
 
+//------------------------------------------------------------------------------
+// Comparison matrix — the permutation harness
+//
+// The workbench exists to compare PERMUTATIONS of a task (workflow /
+// prompt / model / mechanical-vs-semantic). Given the snapshots for one
+// experiment, `compare` lays them out as a matrix: rows are state
+// variables, columns are variants, cells are score/status. Per row it
+// flags where the variants actually diverge — that's the signal the
+// shell highlights so you can see which config changed which outcome.
+
+/// One variant's result for one state variable.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComparisonCell {
+    pub status: StateStatus,
+    pub score: f64,
+    pub confidence: f64,
+}
+
+/// One state variable across every variant in the experiment.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComparisonRow {
+    pub state_var_id: String,
+    /// Aligned to `ComparisonMatrix::variants`; `None` where a variant
+    /// produced no evaluation for this state variable.
+    pub cells: Vec<Option<ComparisonCell>>,
+    /// max − min score across the variants that produced a cell.
+    pub score_spread: f64,
+    /// True when the present cells do not all share one status.
+    pub status_divergence: bool,
+}
+
+/// A run matrix for one experiment: state variables × variants.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComparisonMatrix {
+    pub experiment_id: String,
+    /// Column labels, in `snapshots` order (variant label, else run id).
+    pub variants: Vec<String>,
+    pub rows: Vec<ComparisonRow>,
+}
+
+fn variant_label(snapshot: &WorkbenchSnapshotV1) -> String {
+    snapshot
+        .variant
+        .as_ref()
+        .map(|v| v.label.clone())
+        .unwrap_or_else(|| snapshot.run_id.clone())
+}
+
+/// Lay out the snapshots of one experiment as a comparison matrix.
+/// Variants keep the input order; state-variable rows keep first-seen
+/// order across the snapshots so the matrix is stable.
+pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> ComparisonMatrix {
+    let experiment_id = snapshots
+        .iter()
+        .find_map(|s| s.variant.as_ref().map(|v| v.experiment_id.clone()))
+        .unwrap_or_else(|| "ungrouped".to_string());
+
+    let variants: Vec<String> = snapshots.iter().map(variant_label).collect();
+
+    // First-seen order of state-variable ids across all snapshots.
+    let mut order: Vec<String> = Vec::new();
+    for snap in snapshots {
+        for ev in &snap.evaluations {
+            if !order.iter().any(|id| id == &ev.state_var_id) {
+                order.push(ev.state_var_id.clone());
+            }
+        }
+    }
+
+    let rows = order
+        .into_iter()
+        .map(|state_var_id| {
+            let cells: Vec<Option<ComparisonCell>> = snapshots
+                .iter()
+                .map(|snap| {
+                    snap.evaluations
+                        .iter()
+                        .find(|ev| ev.state_var_id == state_var_id)
+                        .map(|ev| ComparisonCell {
+                            status: ev.status,
+                            score: ev.score,
+                            confidence: ev.confidence,
+                        })
+                })
+                .collect();
+
+            let scores: Vec<f64> = cells.iter().flatten().map(|c| c.score).collect();
+            let score_spread = match (
+                scores.iter().cloned().reduce(f64::max),
+                scores.iter().cloned().reduce(f64::min),
+            ) {
+                (Some(hi), Some(lo)) => hi - lo,
+                _ => 0.0,
+            };
+
+            let mut statuses = cells.iter().flatten().map(|c| c.status);
+            let status_divergence = match statuses.next() {
+                Some(first) => statuses.any(|s| s != first),
+                None => false,
+            };
+
+            ComparisonRow {
+                state_var_id,
+                cells,
+                score_spread,
+                status_divergence,
+            }
+        })
+        .collect();
+
+    ComparisonMatrix {
+        experiment_id,
+        variants,
+        rows,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -85,5 +202,38 @@ mod tests {
                 .any(|id| id.contains("bundle_complete")),
             "the failing evaluation blocks progression"
         );
+    }
+
+    #[test]
+    fn compares_permutations_and_flags_divergence() {
+        // Same task (career.lens.acme-l4-eval), two variants.
+        let opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+
+        let matrix = compare(&[opus, haiku]);
+
+        assert_eq!(matrix.experiment_id, "career.lens.acme-l4-eval");
+        assert_eq!(matrix.variants, vec!["opus+semantic", "haiku+mechanical"]);
+
+        // The grounding row diverges (pass vs fail), with a real spread;
+        // that's the signal "semantic vs mechanical changed the outcome".
+        let grounded = matrix
+            .rows
+            .iter()
+            .find(|r| r.state_var_id == "career.lens.report_grounded")
+            .expect("grounding row present");
+        assert!(grounded.status_divergence, "pass vs fail across variants");
+        assert!(
+            (grounded.score_spread - 0.33).abs() < 1e-9,
+            "0.88 vs 0.55 spread"
+        );
+        assert_eq!(grounded.cells.len(), 2);
+        assert!(grounded.cells.iter().all(Option::is_some));
     }
 }

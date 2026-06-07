@@ -1,0 +1,46 @@
+{
+  "schema_version": "workbench_snapshot/v1",
+  "snapshot_id": "wb-career-opus-semantic-0001",
+  "generated_at": "2026-06-06T00:00:00Z",
+  "product": "career",
+  "run_id": "run-opus-0001",
+  "variant": {
+    "experiment_id": "career.lens.acme-l4-eval",
+    "label": "opus+semantic",
+    "prompt": { "id": "lens-grounding", "version": "v3" },
+    "model": "claude-opus-4-8",
+    "method": "semantic"
+  },
+  "registry_ref": { "registry_id": "career-state-vars", "version": "2026.06.06.1" },
+  "evaluations": [
+    {
+      "state_var_id": "career.lens.report_grounded",
+      "product": "career",
+      "status": "pass",
+      "value": 0.88,
+      "score": 0.88,
+      "confidence": 0.86,
+      "evidence_refs": [],
+      "findings": [],
+      "gate_effect": "none",
+      "evaluated_at": "2026-06-06T00:00:00Z"
+    },
+    {
+      "state_var_id": "career.claim.evidence_traceability",
+      "product": "career",
+      "status": "pass",
+      "value": 0.9,
+      "score": 0.9,
+      "confidence": 0.88,
+      "evidence_refs": [],
+      "findings": [],
+      "gate_effect": "none",
+      "evaluated_at": "2026-06-06T00:00:00Z"
+    }
+  ],
+  "signature": {
+    "algorithm": "sha256",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "canonicalization": "json-c14n/1"
+  }
+}
