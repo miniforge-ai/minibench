@@ -17,6 +17,11 @@
 use serde::{Deserialize, Serialize};
 use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
 
+/// Substring marking a gate effect that blocks progression. Gate-effect
+/// strings are product-owned (`blocks_transition`, ...); a snapshot
+/// whose effect contains this marker holds the run back.
+const BLOCKING_GATE_MARKER: &str = "block";
+
 /// A tenant-agnostic roll-up of one snapshot's evaluations.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct RunSummary {
@@ -57,7 +62,7 @@ pub fn summarize(snapshot: &WorkbenchSnapshotV1) -> RunSummary {
             StateStatus::NotApplicable => summary.not_applicable += 1,
             StateStatus::Unknown => summary.unknown += 1,
         }
-        if ev.gate_effect.contains("block") {
+        if ev.gate_effect.contains(BLOCKING_GATE_MARKER) {
             summary.blocking.push(ev.state_var_id.clone());
         }
     }

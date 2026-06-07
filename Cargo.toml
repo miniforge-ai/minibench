@@ -8,10 +8,19 @@ members = ["crates/kernel", "crates/data-plane", "crates/cli"]
 resolver = "2"
 
 [workspace.package]
-edition = "2021"
+edition = "2024"
 license = "Proprietary"
 version = "0.1.0"
 authors = ["Christopher Lester <christopher@miniforge.ai>"]
+
+# Centralized per miniforge-standards languages/rust (230). Safety core
+# now; pedantic / unwrap_used / missing_docs tightening tracked as a
+# follow-up (would add doc/test churn beyond this slice).
+[workspace.lints.rust]
+unsafe_code = "forbid"
+
+[workspace.lints.clippy]
+all = "deny"
 
 [workspace.dependencies]
 serde = { version = "1", features = ["derive"] }

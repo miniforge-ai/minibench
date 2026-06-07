@@ -19,3 +19,6 @@ path = "src/main.rs"
 serde_json = { workspace = true }
 workbench-contract = { workspace = true }
 minibench-kernel = { workspace = true }
+
+[lints]
+workspace = true

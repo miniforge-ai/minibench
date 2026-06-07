@@ -9,9 +9,9 @@
 
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use minibench_data_plane::{router, WorkbenchProvider};
+use minibench_data_plane::{WorkbenchProvider, router};
 use tower::ServiceExt; // oneshot
-use workbench_contract::{WorkbenchSnapshotV1, WORKBENCH_SNAPSHOT_V1};
+use workbench_contract::{WORKBENCH_SNAPSHOT_V1, WorkbenchSnapshotV1};
 
 #[tokio::test]
 async fn serves_latest_snapshot_as_valid_contract() {

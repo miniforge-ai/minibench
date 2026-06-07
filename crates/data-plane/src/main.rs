@@ -9,7 +9,7 @@
 
 use std::net::SocketAddr;
 
-use minibench_data_plane::{router, WorkbenchProvider};
+use minibench_data_plane::{WorkbenchProvider, router, strings};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,7 +18,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let app = router(provider);
 
     let addr = SocketAddr::from(([127, 0, 0, 1], 8789));
-    println!("minibench data-plane on http://{addr} (snapshots from {dir})");
+    println!(
+        "{} http://{addr} ({} {dir})",
+        strings::BANNER_PREFIX,
+        strings::BANNER_SNAPSHOTS_FROM
+    );
     let listener = tokio::net::TcpListener::bind(addr).await?;
     axum::serve(listener, app).await?;
     Ok(())

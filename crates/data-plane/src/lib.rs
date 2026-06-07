@@ -9,15 +9,17 @@
 //! is the third consumer of `thesium-app-foundation`, after risk and
 //! career — proving the foundation's domain-neutral claim.
 
+pub mod strings;
+
 use std::path::Path;
 
 use async_trait::async_trait;
 use axum::Router;
 use serde_json::Value;
 use thesium_app_foundation_contracts::{
-    AppConfigV1, DistributionV1, LicenseValidationResponseV1, APP_CONFIG_V1,
+    APP_CONFIG_V1, AppConfigV1, DistributionV1, LicenseValidationResponseV1,
 };
-use thesium_app_foundation_data_plane::{build_router, DataPlaneProvider};
+use thesium_app_foundation_data_plane::{DataPlaneProvider, build_router};
 
 /// Serves workbench snapshots held in memory. A snapshot is a
 /// `WorkbenchSnapshotV1` body; here it stays a `Value` because the
@@ -63,7 +65,7 @@ impl DataPlaneProvider for WorkbenchProvider {
     async fn latest_snapshot(&self) -> Result<Value, String> {
         self.latest()
             .cloned()
-            .ok_or_else(|| "no snapshots loaded".to_string())
+            .ok_or_else(|| strings::NO_SNAPSHOTS_LOADED.to_string())
     }
 
     async fn snapshot_by_id(&self, snapshot_id: &str) -> Result<Option<Value>, String> {

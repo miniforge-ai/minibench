@@ -31,3 +31,6 @@ minibench-kernel = { workspace = true }
 
 [dev-dependencies]
 tower = { workspace = true }
+
+[lints]
+workspace = true
