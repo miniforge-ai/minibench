@@ -12,26 +12,62 @@
 use std::path::Path;
 use std::process::ExitCode;
 
-use minibench_kernel::{compare, ComparisonCell, ComparisonMatrix};
+use minibench_kernel::{compare, summarize, ComparisonCell, ComparisonMatrix};
 use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
 
-const USAGE: &str = "usage: minibench compare <dir>";
+const USAGE: &str = "usage: minibench <compare <dir> | summarize <file.json>>";
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match args.first().map(String::as_str) {
-        Some("compare") => match args.get(1) {
-            Some(dir) => run_compare(Path::new(dir)),
-            None => {
-                eprintln!("{USAGE}");
-                ExitCode::FAILURE
-            }
-        },
+    match (args.first().map(String::as_str), args.get(1)) {
+        (Some("compare"), Some(dir)) => run_compare(Path::new(dir)),
+        (Some("summarize"), Some(file)) => run_summarize(Path::new(file)),
         _ => {
             eprintln!("{USAGE}");
             ExitCode::FAILURE
         }
     }
+}
+
+fn run_summarize(file: &Path) -> ExitCode {
+    let bytes = match std::fs::read(file) {
+        Ok(b) => b,
+        Err(e) => {
+            eprintln!("error: {}: {e}", file.display());
+            return ExitCode::FAILURE;
+        }
+    };
+    let snapshot: WorkbenchSnapshotV1 = match serde_json::from_slice(&bytes) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("error: {}: {e}", file.display());
+            return ExitCode::FAILURE;
+        }
+    };
+    let summary = summarize(&snapshot);
+    let variant = snapshot
+        .variant
+        .as_ref()
+        .map(|v| format!(" [{}]", v.label))
+        .unwrap_or_default();
+    println!("{} {}{}", summary.product, summary.snapshot_id, variant);
+    println!(
+        "  {} eval(s): {} pass, {} warn, {} fail, {} blocked",
+        summary.total, summary.pass, summary.warn, summary.fail, summary.blocked
+    );
+    if !summary.blocking.is_empty() {
+        println!("  blocking: {}", summary.blocking.join(", "));
+    }
+    println!();
+    for ev in &snapshot.evaluations {
+        println!(
+            "  {:<34} {:<5} {:.2}",
+            ev.state_var_id,
+            status_str(ev.status),
+            ev.score
+        );
+    }
+    ExitCode::SUCCESS
 }
 
 fn run_compare(dir: &Path) -> ExitCode {
