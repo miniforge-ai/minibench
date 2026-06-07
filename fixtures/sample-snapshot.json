@@ -1,0 +1,74 @@
+{
+  "schema_version": "workbench_snapshot/v1",
+  "snapshot_id": "wb-miniforge-sample-0001",
+  "generated_at": "2026-06-06T00:00:00Z",
+  "product": "miniforge",
+  "run_id": "run-sample-0001",
+  "registry_ref": { "registry_id": "miniforge-state-vars", "version": "2026.06.06.1" },
+  "source_hashes": ["sha256:0000000000000000000000000000000000000000000000000000000000000000"],
+  "evaluations": [
+    {
+      "state_var_id": "miniforge.workflow.machine_authoritative",
+      "product": "miniforge",
+      "status": "pass",
+      "value": true,
+      "score": 1.0,
+      "confidence": 0.94,
+      "score_components": {
+        "machine_presence": 1.0,
+        "projection_consistency": 1.0,
+        "illegal_mutation_absence": 1.0
+      },
+      "evidence_refs": [
+        {
+          "id": "ev-sample-0001",
+          "source_role": "supervisory-projection",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "quote": "synthetic example: single compiled execution machine present"
+        }
+      ],
+      "findings": [],
+      "gate_effect": "none",
+      "evaluated_at": "2026-06-06T00:00:00Z"
+    },
+    {
+      "state_var_id": "miniforge.evidence.bundle_complete",
+      "product": "miniforge",
+      "status": "fail",
+      "value": 0.5,
+      "score": 0.5,
+      "confidence": 0.9,
+      "score_components": {
+        "phase_coverage": 0.6,
+        "semantic_validation": 0.0,
+        "policy_checks": 1.0,
+        "outcome_presence": 1.0
+      },
+      "evidence_refs": [
+        {
+          "id": "ev-sample-0002",
+          "source_role": "evidence-bundle",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "quote": "synthetic example: semantic-validation phase missing from bundle"
+        }
+      ],
+      "findings": [
+        { "severity": "error", "message": "synthetic example: bundle missing semantic-validation evidence" }
+      ],
+      "gate_effect": "blocks_transition",
+      "evaluated_at": "2026-06-06T00:00:00Z"
+    }
+  ],
+  "entities": {
+    "miniforge.workflow_run": {
+      "workflow/id": "wf-sample-0001",
+      "workflow/status": "running",
+      "workflow/current-phase": "verify"
+    }
+  },
+  "signature": {
+    "algorithm": "sha256",
+    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+    "canonicalization": "json-c14n/1"
+  }
+}

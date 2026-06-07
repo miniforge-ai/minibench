@@ -1,0 +1,33 @@
+# Title: Minibench
+# Subtitle: data-plane crate — serves workbench snapshots over the foundation router
+# Author: Christopher Lester
+# Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+
+[package]
+name = "minibench-data-plane"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+description = "Minibench DataPlaneProvider serving WorkbenchSnapshotV1 over the thesium-app-foundation five-route data plane"
+
+[lib]
+name = "minibench_data_plane"
+path = "src/lib.rs"
+
+[[bin]]
+name = "minibench-data-plane"
+path = "src/main.rs"
+
+[dependencies]
+async-trait = { workspace = true }
+axum = { workspace = true }
+tokio = { workspace = true }
+serde_json = { workspace = true }
+thesium-app-foundation-contracts = { workspace = true }
+thesium-app-foundation-data-plane = { workspace = true }
+workbench-contract = { workspace = true }
+minibench-kernel = { workspace = true }
+
+[dev-dependencies]
+tower = { workspace = true }

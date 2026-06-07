@@ -1,0 +1,29 @@
+# Title: Minibench
+# Subtitle: workbench app shell — foundation-riding data plane + generic kernel
+# Author: Christopher Lester
+# Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+
+[workspace]
+members = ["crates/kernel", "crates/data-plane"]
+resolver = "2"
+
+[workspace.package]
+edition = "2021"
+license = "Proprietary"
+version = "0.1.0"
+authors = ["Christopher Lester <christopher@miniforge.ai>"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+axum = "0.7"
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
+async-trait = "0.1"
+tower = { version = "0.4", features = ["util"] }
+
+# Sibling repos — path pins for local multi-repo dev; move to git/tag
+# deps once these publish stable refs.
+thesium-app-foundation-contracts = { path = "../thesium-app-foundation/crates/contracts" }
+thesium-app-foundation-data-plane = { path = "../thesium-app-foundation/crates/data-plane" }
+workbench-contract = { path = "../workbench-contract/crates/contracts" }
+minibench-kernel = { path = "crates/kernel" }

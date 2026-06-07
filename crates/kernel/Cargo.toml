@@ -1,0 +1,19 @@
+# Title: Minibench
+# Subtitle: kernel crate — tenant-agnostic snapshot roll-up
+# Author: Christopher Lester
+# Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+
+[package]
+name = "minibench-kernel"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+description = "Generic, tenant-agnostic kernel over workbench snapshots (run summary, blocking-gate detection)"
+
+[dependencies]
+serde = { workspace = true }
+workbench-contract = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
