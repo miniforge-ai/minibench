@@ -1,0 +1,21 @@
+# Title: Minibench
+# Subtitle: cli crate — terminal access to the comparison matrix
+# Author: Christopher Lester
+# Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+
+[package]
+name = "minibench-cli"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+authors.workspace = true
+description = "minibench CLI: compare a directory of workbench snapshots as a run matrix"
+
+[[bin]]
+name = "minibench"
+path = "src/main.rs"
+
+[dependencies]
+serde_json = { workspace = true }
+workbench-contract = { workspace = true }
+minibench-kernel = { workspace = true }

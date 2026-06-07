@@ -4,7 +4,7 @@
 # Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
 
 [workspace]
-members = ["crates/kernel", "crates/data-plane"]
+members = ["crates/kernel", "crates/data-plane", "crates/cli"]
 resolver = "2"
 
 [workspace.package]
