@@ -1,0 +1,5 @@
+# Use the system git (with its SSH auth) to fetch private git
+# dependencies; libgit2's built-in SSH does not pick up the agent/keys
+# reliably for private miniforge-ai repos.
+[net]
+git-fetch-with-cli = true

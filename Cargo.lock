@@ -458,6 +458,7 @@ checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 [[package]]
 name = "thesium-app-foundation-contracts"
 version = "0.1.0"
+source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1#daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1"
 dependencies = [
  "serde",
  "serde_json",
@@ -466,6 +467,7 @@ dependencies = [
 [[package]]
 name = "thesium-app-foundation-data-plane"
 version = "0.1.0"
+source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1#daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1"
 dependencies = [
  "async-trait",
  "axum",
@@ -614,6 +616,7 @@ dependencies = [
 [[package]]
 name = "workbench-contract"
 version = "0.1.0"
+source = "git+ssh://git@github.com/miniforge-ai/workbench-contract.git?rev=3196b5fae38112d765c3a7f994c893bcb0b8318c#3196b5fae38112d765c3a7f994c893bcb0b8318c"
 dependencies = [
  "serde",
  "serde_json",

@@ -30,9 +30,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 async-trait = "0.1"
 tower = { version = "0.4", features = ["util"] }
 
-# Sibling repos — path pins for local multi-repo dev; move to git/tag
-# deps once these publish stable refs.
-thesium-app-foundation-contracts = { path = "../thesium-app-foundation/crates/contracts" }
-thesium-app-foundation-data-plane = { path = "../thesium-app-foundation/crates/data-plane" }
-workbench-contract = { path = "../workbench-contract/crates/contracts" }
+# Sibling repos pinned to published git revs — self-contained, no sibling
+# checkout required. .cargo/config sets net.git-fetch-with-cli for private
+# SSH fetch. Bump the revs to adopt upstream changes.
+thesium-app-foundation-contracts = { git = "ssh://git@github.com/miniforge-ai/thesium-app-foundation.git", rev = "daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1" }
+thesium-app-foundation-data-plane = { git = "ssh://git@github.com/miniforge-ai/thesium-app-foundation.git", rev = "daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1" }
+workbench-contract = { git = "ssh://git@github.com/miniforge-ai/workbench-contract.git", rev = "3196b5fae38112d765c3a7f994c893bcb0b8318c" }
 minibench-kernel = { path = "crates/kernel" }
