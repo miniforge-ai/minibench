@@ -1,0 +1,19 @@
+;; Title: Minibench
+;; Subtitle: live-feed input — career Lens v2 report, "haiku+mechanical" variant
+;; Author: Christopher Lester
+;; Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+;;
+;; Synthetic, non-personal. Same logical task as career-lens-opus.edn but
+;; with lower evidence-confidence — the weaker model/method grounds less,
+;; so the projection drops below threshold and the grounding row FAILS.
+;; This divergence (pass vs fail) is the whole point of the permutation matrix.
+{:report/lens-id :acme-engineering
+ :report/framework-id :acme-engineering
+ :report/output-mode :clause-level
+ :report/verdicts
+ [{:verdict/dimension :technical-execution
+   :verdict/level :l2
+   :verdict/envelope {:envelope/evidence-confidence 0.5}}
+  {:verdict/dimension :technical-execution
+   :verdict/level :l3
+   :verdict/envelope {:envelope/evidence-confidence 0.35}}]}

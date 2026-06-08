@@ -1,0 +1,19 @@
+;; Title: Minibench
+;; Subtitle: live-feed input — career Lens v2 report, "opus+semantic" variant
+;; Author: Christopher Lester
+;; Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+;;
+;; Synthetic, non-personal. Fed to the real career-workbench-adapter via
+;; `bb workbench:snapshot` (see scripts/regen-fixtures.sh) to produce
+;; fixtures/experiments/opus-semantic.json. High evidence-confidence ->
+;; grounding passes.
+{:report/lens-id :acme-engineering
+ :report/framework-id :acme-engineering
+ :report/output-mode :clause-level
+ :report/verdicts
+ [{:verdict/dimension :technical-execution
+   :verdict/level :l3
+   :verdict/envelope {:envelope/evidence-confidence 0.9}}
+  {:verdict/dimension :technical-execution
+   :verdict/level :l4
+   :verdict/envelope {:envelope/evidence-confidence 0.85}}]}

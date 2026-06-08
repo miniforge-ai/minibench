@@ -1,0 +1,12 @@
+{
+  "_comment": "Synthetic, non-personal portfolio lens-validation-readiness report. Fed to the real portfolio-workbench-adapter via `bb workbench:portfolio-snapshot` to produce fixtures/portfolio-daily.json.",
+  "gate_status": "passed",
+  "lens_count": 2,
+  "ready_lens_count": 2,
+  "failed_lens_count": 0,
+  "assembly_summary": { "dropped_observation_frequency": 0.0 },
+  "lenses": [
+    { "missing_input_frequency": 0.0, "fallback_method_frequency": 0.0 },
+    { "missing_input_frequency": 0.0, "fallback_method_frequency": 0.0 }
+  ]
+}
