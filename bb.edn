@@ -1,0 +1,16 @@
+;; Title: Minibench
+;; Subtitle: Babashka tasks — pre-commit gate + fixture regen (bb-over-shell, 740)
+;; Author: Christopher Lester
+;; Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+{:paths ["tasks"]
+ :tasks
+ {pre-commit
+  {:doc "Pre-commit gate: cargo fmt + clippy (deny warnings) + tests. Run by .githooks/pre-commit; never bypass."
+   :task (do (shell "cargo fmt --all --check")
+             (shell "cargo clippy --workspace --all-targets --all-features -- -D warnings")
+             (shell "cargo test --workspace --all-targets --all-features"))}
+
+  regen-fixtures
+  {:doc "Regenerate demo fixtures from the real workbench adapters. Needs a thesium-workflows checkout (set THESIUM_WORKFLOWS) + babashka."
+   :requires ([regen])
+   :task (regen/fixtures!)}}}

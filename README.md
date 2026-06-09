@@ -33,7 +33,7 @@ consuming edges (kernel, and later the Swift shell).
 The demo fixtures are **real adapter output**, not hand-written. The
 career and portfolio tenants project their actual validation runs into
 `workbench_snapshot/v1` via the `bb workbench:*` tasks in
-`thesium-workflows`. `scripts/regen-fixtures.sh` runs those tasks on the
+`thesium-workflows`. `bb regen-fixtures` runs those tasks on the
 synthetic, non-personal inputs in `fixtures/inputs/` and writes:
 
 - `fixtures/experiments/{opus-semantic,haiku-mechanical}.json` — one career
@@ -41,7 +41,7 @@ synthetic, non-personal inputs in `fixtures/inputs/` and writes:
 - `fixtures/portfolio-daily.json` — a portfolio daily snapshot (second tenant).
 
 ```bash
-scripts/regen-fixtures.sh    # needs a thesium-workflows checkout + babashka
+bb regen-fixtures            # needs a thesium-workflows checkout + babashka
 cargo run -p minibench-cli -- compare fixtures/experiments
 ```
 

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 # Pre-commit gate per miniforge-standards workflows/pre-commit-discipline
-# (715). Never bypass — fix the root cause. Enable once per clone with:
-#   git config core.hooksPath .githooks
+# (715). Gate logic lives in the `bb pre-commit` task
+# (workflows/bb-over-shell, 740). Never bypass — fix the root cause.
+# Enable once per clone with:  git config core.hooksPath .githooks
 set -euo pipefail
 
-cargo fmt --all --check
-cargo clippy --workspace --all-targets --all-features -- -D warnings
-cargo test --workspace --all-targets --all-features
+exec bb pre-commit
