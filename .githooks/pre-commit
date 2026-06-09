@@ -5,4 +5,10 @@
 # Enable once per clone with:  git config core.hooksPath .githooks
 set -euo pipefail
 
+if ! command -v bb >/dev/null 2>&1; then
+  echo "pre-commit: Babashka (bb) is required but not installed." >&2
+  echo "  Install: brew install borkdude/brew/babashka  (or see https://github.com/babashka/babashka#installation)" >&2
+  exit 1
+fi
+
 exec bb pre-commit

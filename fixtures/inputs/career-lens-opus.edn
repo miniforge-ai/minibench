@@ -4,7 +4,7 @@
 ;; Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
 ;;
 ;; Synthetic, non-personal. Fed to the real career-workbench-adapter via
-;; `bb workbench:snapshot` (see scripts/regen-fixtures.sh) to produce
+;; `bb workbench:snapshot`, run by `bb regen-fixtures`, to produce
 ;; fixtures/experiments/opus-semantic.json. High evidence-confidence ->
 ;; grounding passes.
 {:report/lens-id :acme-engineering

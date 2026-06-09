@@ -1,7 +1,8 @@
 # CLAUDE.md
 
 This repository vendors the Miniforge engineering rules as a git submodule
-at `standards/miniforge/`. Load them before any task.
+at `standards/miniforge/`. Load them before any task. A fresh clone needs
+`git submodule update --init --recursive` for that directory to exist.
 
 ## Entry points
 
