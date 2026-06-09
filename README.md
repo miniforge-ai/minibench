@@ -28,15 +28,35 @@ app-stack transport — reusing the foundation router verbatim. Snapshot
 bodies are the typed `workbench-contract` shapes, re-applied at the
 consuming edges (kernel, and later the Swift shell).
 
+## Live feeds
+
+The demo fixtures are **real adapter output**, not hand-written. The
+career and portfolio tenants project their actual validation runs into
+`workbench_snapshot/v1` via the `bb workbench:*` tasks in
+`thesium-workflows`. `bb regen-fixtures` runs those tasks on the
+synthetic, non-personal inputs in `fixtures/inputs/` and writes:
+
+- `fixtures/experiments/{opus-semantic,haiku-mechanical}.json` — one career
+  lens experiment under two variants: the permutation matrix (pass vs fail).
+- `fixtures/portfolio-daily.json` — a portfolio daily snapshot (second tenant).
+
+```bash
+bb regen-fixtures            # needs a thesium-workflows checkout + babashka
+cargo run -p minibench-cli -- compare fixtures/experiments
+```
+
+`fixtures/sample-snapshot.json` stays hand-written — it stands in for the
+miniforge tenant, whose adapter doesn't exist yet.
+
 ## Deferred to later slices
 
 - **Swift UI shell** — the three view tiers (generic registry-driven
   views, the shared primitive kit, bespoke product view plugins).
 - **Kernel** — regression diff, narration-packet assembly,
   registry-driven generic evaluators.
-- **Live tenant feeds** — wiring real adapters (the career reference
-  adapter lives in `workbench-contract/bindings/clojure`) in place of the
-  sample fixture.
+- **Live feed for miniforge** — once a miniforge adapter exists,
+  regenerate `fixtures/sample-snapshot.json` from it too (career +
+  portfolio already feed from their real adapters — see **Live feeds**).
 
 ## Run
 
@@ -48,8 +68,9 @@ curl -s http://127.0.0.1:8789/v1/snapshots/latest | jq .product
 ```
 
 Loads snapshots from `MINIBENCH_SNAPSHOT_DIR` (default `fixtures`).
-Requires `thesium-app-foundation` and `workbench-contract` checked out as
-sibling directories (path dependencies).
+`thesium-app-foundation` and `workbench-contract` are pinned **git
+dependencies** (private; `.cargo/config` sets `git-fetch-with-cli` for the
+SSH fetch) — no sibling checkout needed to build.
 
 ## Ports
 

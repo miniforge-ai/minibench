@@ -1,0 +1,61 @@
+{
+  "schema_version" : "workbench_snapshot/v1",
+  "variant" : {
+    "experiment_id" : "portfolio.daily",
+    "label" : "baseline",
+    "model" : "risk-pipeline"
+  },
+  "run_id" : "run-baseline",
+  "generated_at" : "2026-06-08T04:50:09.609488Z",
+  "signature" : {
+    "algorithm" : "sha256",
+    "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
+    "canonicalization" : "json-c14n/1"
+  },
+  "snapshot_id" : "wb-portfolio-baseline",
+  "entities" : {
+    "portfolio.readiness" : {
+      "lens-count" : 2,
+      "ready-lens-count" : 2,
+      "gate-status" : "passed"
+    }
+  },
+  "product" : "portfolio",
+  "evaluations" : [ {
+    "findings" : [ ],
+    "state_var_id" : "portfolio.lens.validation_readiness",
+    "evidence_refs" : [ ],
+    "value" : "ready",
+    "gate_effect" : "none",
+    "score_components" : {
+      "ready_lens_ratio" : 1.0,
+      "missing_input_rate" : 0.0,
+      "fallback_method_rate" : 0.0
+    },
+    "product" : "portfolio",
+    "status" : "pass",
+    "score" : 1.0,
+    "evaluated_at" : "2026-06-08T04:50:09.609488Z",
+    "confidence" : 0.95
+  }, {
+    "findings" : [ ],
+    "state_var_id" : "portfolio.data.fidelity_gate",
+    "evidence_refs" : [ ],
+    "value" : true,
+    "gate_effect" : "none",
+    "score_components" : {
+      "missing_input_pct" : 0.0,
+      "fallback_method_pct" : 0.0,
+      "dropped_observation_pct" : 0.0
+    },
+    "product" : "portfolio",
+    "status" : "pass",
+    "score" : 1.0,
+    "evaluated_at" : "2026-06-08T04:50:09.609488Z",
+    "confidence" : 0.95
+  } ],
+  "registry_ref" : {
+    "registry_id" : "portfolio-state-vars",
+    "version" : "2026.06.06.1"
+  }
+}

@@ -1,48 +1,58 @@
 {
-  "schema_version": "workbench_snapshot/v1",
-  "snapshot_id": "wb-career-haiku-mechanical-0001",
-  "generated_at": "2026-06-06T00:00:00Z",
-  "product": "career",
-  "run_id": "run-haiku-0001",
-  "variant": {
-    "experiment_id": "career.lens.acme-l4-eval",
-    "label": "haiku+mechanical",
-    "prompt": { "id": "lens-grounding", "version": "v3" },
-    "model": "claude-haiku-4-5",
-    "method": "mechanical"
+  "schema_version" : "workbench_snapshot/v1",
+  "variant" : {
+    "experiment_id" : "career.lens.acme-l4-eval",
+    "label" : "haiku+mechanical",
+    "model" : "claude-haiku-4-5",
+    "method" : "mechanical"
   },
-  "registry_ref": { "registry_id": "career-state-vars", "version": "2026.06.06.1" },
-  "evaluations": [
-    {
-      "state_var_id": "career.lens.report_grounded",
-      "product": "career",
-      "status": "fail",
-      "value": 0.55,
-      "score": 0.55,
-      "confidence": 0.8,
-      "evidence_refs": [],
-      "findings": [
-        { "severity": "error", "message": "synthetic example: mechanical extraction missed grounding for 2 verdicts" }
-      ],
-      "gate_effect": "requires_repair",
-      "evaluated_at": "2026-06-06T00:00:00Z"
-    },
-    {
-      "state_var_id": "career.claim.evidence_traceability",
-      "product": "career",
-      "status": "warn",
-      "value": 0.7,
-      "score": 0.7,
-      "confidence": 0.78,
-      "evidence_refs": [],
-      "findings": [],
-      "gate_effect": "marks_low_confidence",
-      "evaluated_at": "2026-06-06T00:00:00Z"
+  "run_id" : "run-haiku+mechanical",
+  "generated_at" : "2026-06-08T04:50:06.995014Z",
+  "signature" : {
+    "algorithm" : "sha256",
+    "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
+    "canonicalization" : "json-c14n/1"
+  },
+  "snapshot_id" : "wb-haiku+mechanical",
+  "entities" : {
+    "career.lens_report" : {
+      "report/lens-id" : "acme-engineering",
+      "report/framework-id" : "acme-engineering",
+      "report/output-mode" : "clause-level",
+      "report/verdict-count" : 2
     }
-  ],
-  "signature": {
-    "algorithm": "sha256",
-    "digest": "0000000000000000000000000000000000000000000000000000000000000000",
-    "canonicalization": "json-c14n/1"
+  },
+  "product" : "career",
+  "evaluations" : [ {
+    "findings" : [ {
+      "severity" : "warn",
+      "message" : "1 verdict(s) below grounding floor"
+    } ],
+    "state_var_id" : "career.lens.report_grounded",
+    "evidence_refs" : [ {
+      "id" : "career.lens-verdict.technical-execution.l2",
+      "source_role" : "lens-verdict",
+      "quote" : "verdict technical-execution/l2 evidence-confidence 0.5"
+    }, {
+      "id" : "career.lens-verdict.technical-execution.l3",
+      "source_role" : "lens-verdict",
+      "quote" : "verdict technical-execution/l3 evidence-confidence 0.35"
+    } ],
+    "value" : 0.43,
+    "gate_effect" : "requires_repair",
+    "score_components" : {
+      "verdict_envelope_coverage" : 1.0,
+      "evidence_confidence" : 0.43,
+      "ungrounded_verdict_rate" : 0.5
+    },
+    "product" : "career",
+    "status" : "fail",
+    "score" : 0.43,
+    "evaluated_at" : "2026-06-08T04:50:06.995014Z",
+    "confidence" : 0.72
+  } ],
+  "registry_ref" : {
+    "registry_id" : "career-state-vars",
+    "version" : "2026.06.06.1"
   }
 }

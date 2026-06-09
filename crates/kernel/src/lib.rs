@@ -235,8 +235,8 @@ mod tests {
             .expect("grounding row present");
         assert!(grounded.status_divergence, "pass vs fail across variants");
         assert!(
-            (grounded.score_spread - 0.33).abs() < 1e-9,
-            "0.88 vs 0.55 spread"
+            (grounded.score_spread - 0.45).abs() < 1e-9,
+            "0.88 vs 0.43 spread"
         );
         assert_eq!(grounded.cells.len(), 2);
         assert!(grounded.cells.iter().all(Option::is_some));
