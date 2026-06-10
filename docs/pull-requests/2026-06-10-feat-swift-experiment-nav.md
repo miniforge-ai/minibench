@@ -9,7 +9,7 @@ listing experiments grouped by tenant, detail rendering the selected one's
 matrix — plus richer fixtures (a second experiment) and the data-plane
 endpoints that group snapshots by experiment.
 
-## Slice 2 — what it adds
+## Changes in Detail
 
 - **Data-plane:** `GET /v1/experiments` (group loaded snapshots by
   `variant.experiment_id`) + `GET /v1/experiments/:id/matrix`. Two route

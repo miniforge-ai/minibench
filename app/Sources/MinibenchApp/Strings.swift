@@ -12,6 +12,7 @@ enum Strings {
     // Phase / chrome
     static let loading = "Loading…"
     static let refresh = "Refresh"
+    static let retry = "Retry"
     static let emptyMatrix = "No experiment loaded."
 
     // Errors

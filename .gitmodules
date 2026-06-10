@@ -1,3 +1,9 @@
 [submodule "standards/miniforge"]
 	path = standards/miniforge
 	url = git@github.com:miniforge-ai/miniforge-standards.git
+[submodule "standards/thesium"]
+	path = standards/thesium
+	url = git@github.com:miniforge-ai/thesium-standards.git
+	# Private repo, design/UX reference only — no runtime or build dependency.
+	# Dev: git submodule update --init --checkout standards/thesium
+	update = none

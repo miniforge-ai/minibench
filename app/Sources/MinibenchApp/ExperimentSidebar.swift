@@ -14,11 +14,13 @@ struct ExperimentSidebar: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .failed(let message):
-            ContentUnavailableView(
-                Strings.errorTitle,
-                systemImage: "bolt.horizontal.circle",
-                description: Text(message)
-            )
+            ContentUnavailableView {
+                Label(Strings.errorTitle, systemImage: "bolt.horizontal.circle")
+            } description: {
+                Text(message)
+            } actions: {
+                Button(Strings.retry) { Task { await store.loadExperiments() } }
+            }
         case .loaded(let experiments) where experiments.isEmpty:
             ContentUnavailableView(Strings.noExperiments, systemImage: "tray")
         case .loaded(let experiments):

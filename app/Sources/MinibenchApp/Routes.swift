@@ -5,7 +5,11 @@ import Foundation
 /// L0 — the data-plane endpoint, centralized. Loopback (risk :8787, career
 /// :8788, minibench :8789).
 enum Routes {
-    static let base = "http://127.0.0.1:8789"
+    /// Data-plane base URL. `MINIBENCH_DATA_PLANE_URL` overrides the loopback
+    /// default per `foundations/config-as-data` — operational value out of
+    /// code, the literal is only the fallback.
+    static let base = ProcessInfo.processInfo.environment["MINIBENCH_DATA_PLANE_URL"]
+        ?? "http://127.0.0.1:8789"
     static let experiments = "/v1/experiments"
 
     /// The matrix route for one experiment id, encoded as a single path

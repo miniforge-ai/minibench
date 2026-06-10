@@ -24,8 +24,8 @@ enum Tokens {
     enum Spacing {
         /// Tight — within a cell (status badge ↔ score).
         static let tight: CGFloat = 4
-        /// Normal — between grid rows / grouped controls.
-        static let normal: CGFloat = 12
+        /// Normal — between grid rows / grouped controls (8pt grid step).
+        static let normal: CGFloat = 16
         /// Roomy — between matrix columns, so variants read as columns.
         static let roomy: CGFloat = 24
     }
@@ -36,8 +36,10 @@ enum Tokens {
     }
 }
 
-/// Status → presentation. Semantic system colors for slice 1; a richer
-/// Miniforge palette is a later design pass.
+/// Status → presentation. Status colors derive from the macOS system
+/// semantic palette (per `design/ux-miniforge`: systemGreen / systemYellow /
+/// systemRed) so they adapt to light/dark mode; muted label colors carry the
+/// de-emphasized states.
 extension StateStatus {
     var label: String {
         switch self {
@@ -52,11 +54,11 @@ extension StateStatus {
 
     var tint: Color {
         switch self {
-        case .pass: .green
-        case .warn: .orange
-        case .fail: .red
-        case .blocked: .gray
-        case .notApplicable, .unknown: .secondary
+        case .pass: Color(.systemGreen)
+        case .warn: Color(.systemYellow)
+        case .fail: Color(.systemRed)
+        case .blocked: Color(.secondaryLabelColor)
+        case .notApplicable, .unknown: Color(.tertiaryLabelColor)
         }
     }
 }
