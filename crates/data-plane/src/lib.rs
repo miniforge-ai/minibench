@@ -15,9 +15,8 @@ use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use axum::extract::State;
 use axum::routing::get;
-use axum::{Json, Router};
+use axum::{Extension, Json, Router};
 use minibench_kernel::{ComparisonMatrix, compare};
 use serde_json::Value;
 use thesium_app_foundation_contracts::{
@@ -115,16 +114,19 @@ impl DataPlaneProvider for WorkbenchProvider {
 pub const COMPARISON_ROUTE: &str = "/v1/comparison";
 
 async fn handle_comparison(
-    State(snapshots): State<Arc<Vec<WorkbenchSnapshotV1>>>,
+    Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
 ) -> Json<ComparisonMatrix> {
     Json(compare(&snapshots))
 }
 
-/// The foundation's five-route router around a [`WorkbenchProvider`],
-/// merged with minibench's comparison route ([`COMPARISON_ROUTE`]).
+/// The foundation's five-route router around a [`WorkbenchProvider`], plus
+/// minibench's comparison route ([`COMPARISON_ROUTE`]). The decoded
+/// snapshots ride an `Extension` layer on that one route, so the foundation
+/// router's state type is unchanged — no `merge` of differing state types.
 pub fn router(provider: WorkbenchProvider) -> Router {
-    let comparison = Router::new()
-        .route(COMPARISON_ROUTE, get(handle_comparison))
-        .with_state(Arc::new(provider.decoded_snapshots()));
-    build_router(provider).merge(comparison)
+    let snapshots = Arc::new(provider.decoded_snapshots());
+    build_router(provider).route(
+        COMPARISON_ROUTE,
+        get(handle_comparison).layer(Extension(snapshots)),
+    )
 }

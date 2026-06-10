@@ -28,18 +28,27 @@ final class MatrixStore {
             phase = .failed(Strings.errorBadEndpoint)
             return
         }
+        // Transport failure (data-plane down / unreachable) — distinct from
+        // a decode failure below, so the operator sees the right cause.
+        let data: Data
+        let response: URLResponse
         do {
-            let (data, response) = try await URLSession.shared.data(from: endpoint)
-            guard let http = response as? HTTPURLResponse, http.statusCode == Self.httpOK else {
-                phase = .failed(Strings.errorBadStatus)
-                return
-            }
-            let decoder = JSONDecoder()
-            decoder.keyDecodingStrategy = .convertFromSnakeCase
-            let matrix = try decoder.decode(ComparisonMatrix.self, from: data)
-            phase = .loaded(matrix)
+            (data, response) = try await URLSession.shared.data(from: endpoint)
         } catch {
             phase = .failed(Strings.errorUnreachable)
+            return
+        }
+        guard let http = response as? HTTPURLResponse, http.statusCode == Self.httpOK else {
+            phase = .failed(Strings.errorBadStatus)
+            return
+        }
+        // Reachable + 200, but the payload shape didn't decode.
+        do {
+            let decoder = JSONDecoder()
+            decoder.keyDecodingStrategy = .convertFromSnakeCase
+            phase = .loaded(try decoder.decode(ComparisonMatrix.self, from: data))
+        } catch {
+            phase = .failed(Strings.errorBadPayload)
         }
     }
 

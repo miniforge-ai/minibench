@@ -23,6 +23,7 @@ enum Strings {
     static let errorBadEndpoint = "The comparison endpoint URL is invalid."
     static let errorBadStatus = "The data-plane returned an unexpected status."
     static let errorUnreachable = "Can't reach the data-plane on :8789. Start it with `bb serve`."
+    static let errorBadPayload = "The data-plane responded, but the comparison payload didn't decode."
 
     // Matrix columns / marks
     static let colStateVar = "State variable"

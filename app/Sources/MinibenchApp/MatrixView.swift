@@ -56,7 +56,10 @@ struct MatrixView: View {
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(.secondary)
 
-                Divider()
+                // Span the full grid width: id column + one per variant + spread.
+                GridRow {
+                    Divider().gridCellColumns(matrix.variants.count + 2)
+                }
 
                 ForEach(matrix.rows) { row in
                     GridRow {
