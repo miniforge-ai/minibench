@@ -92,16 +92,9 @@ fn run_summarize(file: &Path) -> ExitCode {
 }
 
 fn run_compare(dir: &Path) -> ExitCode {
-    let snapshots = match load_dir(dir) {
-        Ok(snapshots) if snapshots.is_empty() => {
-            eprintln!("{} {}", strings::NO_SNAPSHOTS_FOUND, dir.display());
-            return ExitCode::FAILURE;
-        }
+    let snapshots = match load_nonempty(dir) {
         Ok(snapshots) => snapshots,
-        Err(message) => {
-            eprintln!("{} {message}", strings::ERROR_PREFIX);
-            return ExitCode::FAILURE;
-        }
+        Err(code) => return code,
     };
     print_matrix(&compare(&snapshots));
     ExitCode::SUCCESS
@@ -110,21 +103,17 @@ fn run_compare(dir: &Path) -> ExitCode {
 /// `minibench diff <baseline-dir> <current-dir>` — report every state
 /// variable that regressed vs the baseline (status worse or score dropped)
 /// and exit non-zero when any did, so CI can fail the build. This closes the
-/// loop: the harness can say a run is *worse*, not merely *different*.
+/// loop: the harness can say a run is *worse*, not merely *different*. Both
+/// directories must hold snapshots — an empty one is an error, not a clean
+/// run, so a wrong path or missing artifacts can't make the gate vacuous.
 fn run_diff(baseline_dir: &Path, current_dir: &Path) -> ExitCode {
-    let baseline = match load_dir(baseline_dir) {
+    let baseline = match load_nonempty(baseline_dir) {
         Ok(snapshots) => snapshots,
-        Err(message) => {
-            eprintln!("{} {message}", strings::ERROR_PREFIX);
-            return ExitCode::FAILURE;
-        }
+        Err(code) => return code,
     };
-    let current = match load_dir(current_dir) {
+    let current = match load_nonempty(current_dir) {
         Ok(snapshots) => snapshots,
-        Err(message) => {
-            eprintln!("{} {message}", strings::ERROR_PREFIX);
-            return ExitCode::FAILURE;
-        }
+        Err(code) => return code,
     };
 
     let report = diff(&baseline, &current);
@@ -133,6 +122,22 @@ fn run_diff(baseline_dir: &Path, current_dir: &Path) -> ExitCode {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(strings::REGRESSION_EXIT_CODE)
+    }
+}
+
+/// Load every snapshot in `dir`, treating an empty directory as an error —
+/// a missing or wrong path must not read as a clean/empty result.
+fn load_nonempty(dir: &Path) -> Result<Vec<WorkbenchSnapshotV1>, ExitCode> {
+    match load_dir(dir) {
+        Ok(snapshots) if snapshots.is_empty() => {
+            eprintln!("{} {}", strings::NO_SNAPSHOTS_FOUND, dir.display());
+            Err(ExitCode::FAILURE)
+        }
+        Ok(snapshots) => Ok(snapshots),
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            Err(ExitCode::FAILURE)
+        }
     }
 }
 

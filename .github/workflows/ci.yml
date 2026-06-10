@@ -61,9 +61,11 @@ jobs:
       - name: Cache cargo
         uses: actions/cache@v4
         with:
+          # No ~/.cargo/git: those checkouts' .git/config hold the rewritten
+          # remote URL with the ephemeral App token — don't persist it in a
+          # cache artifact. Private git deps re-fetch each run (cheap).
           path: |
             ~/.cargo/registry
-            ~/.cargo/git
             target
           key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
           restore-keys: ${{ runner.os }}-cargo-

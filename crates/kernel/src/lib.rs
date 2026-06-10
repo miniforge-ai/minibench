@@ -241,9 +241,9 @@ const SCORE_REGRESSION_EPSILON: f64 = 1e-9;
 
 /// Compare `current` against a known-good `baseline` and report every state
 /// variable that got worse — status more severe, or score dropped — matched
-/// by (experiment, variant, state-var). The basis for
-/// `compare --fail-on-regression`: a snapshot can differ from the last
-/// release and the kernel can say it is *worse*, not merely *different*. A
+/// by (experiment, variant, state-var). The basis for `minibench diff`: a
+/// snapshot can differ from the last release and the kernel can say it is
+/// *worse*, not merely *different*. A
 /// cell present in `current` but absent from `baseline` is new, not a
 /// regression.
 pub fn diff(baseline: &[WorkbenchSnapshotV1], current: &[WorkbenchSnapshotV1]) -> RegressionReport {
