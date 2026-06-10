@@ -11,8 +11,10 @@
 //! adapter; the kernel does the cross-cutting roll-up, regression
 //! diff, and narration-packet assembly the shell renders.
 //!
-//! This first slice ships the run summary. Regression diff and
-//! narration-packet assembly land in later slices.
+//! Ships the run summary, comparison matrix, and regression diff;
+//! narration-packet assembly lands in a later slice.
+
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
@@ -186,6 +188,107 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> ComparisonMatrix {
     }
 }
 
+/// Severity rank for the comparable statuses (lower is healthier); `None`
+/// for statuses that don't sit on the pass→blocked axis.
+fn severity(status: StateStatus) -> Option<u8> {
+    match status {
+        StateStatus::Pass => Some(0),
+        StateStatus::Warn => Some(1),
+        StateStatus::Fail => Some(2),
+        StateStatus::Blocked => Some(3),
+        StateStatus::NotApplicable | StateStatus::Unknown => None,
+    }
+}
+
+/// The snapshot's experiment id, or `"ungrouped"` when it carries no variant.
+fn experiment_id_of(snapshot: &WorkbenchSnapshotV1) -> String {
+    snapshot
+        .variant
+        .as_ref()
+        .map(|v| v.experiment_id.clone())
+        .unwrap_or_else(|| "ungrouped".to_string())
+}
+
+/// One state variable that regressed against the baseline — its status got
+/// more severe, or its score dropped.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct Regression {
+    pub experiment_id: String,
+    pub variant: String,
+    pub state_var_id: String,
+    pub baseline_status: StateStatus,
+    pub current_status: StateStatus,
+    pub baseline_score: f64,
+    pub current_score: f64,
+}
+
+/// The outcome of [`diff`] — the regressions found, in current-scan order.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RegressionReport {
+    pub regressions: Vec<Regression>,
+}
+
+impl RegressionReport {
+    /// True when nothing regressed — the gate passes.
+    pub fn is_clean(&self) -> bool {
+        self.regressions.is_empty()
+    }
+}
+
+/// A score below baseline by more than this is a regression; the epsilon
+/// absorbs float round-trip noise (snapshots carry 2-dp scores).
+const SCORE_REGRESSION_EPSILON: f64 = 1e-9;
+
+/// Compare `current` against a known-good `baseline` and report every state
+/// variable that got worse — status more severe, or score dropped — matched
+/// by (experiment, variant, state-var). The basis for
+/// `compare --fail-on-regression`: a snapshot can differ from the last
+/// release and the kernel can say it is *worse*, not merely *different*. A
+/// cell present in `current` but absent from `baseline` is new, not a
+/// regression.
+pub fn diff(baseline: &[WorkbenchSnapshotV1], current: &[WorkbenchSnapshotV1]) -> RegressionReport {
+    let mut base: HashMap<(String, String, String), (StateStatus, f64)> = HashMap::new();
+    for snap in baseline {
+        let experiment = experiment_id_of(snap);
+        let variant = variant_label(snap);
+        for ev in &snap.evaluations {
+            base.insert(
+                (experiment.clone(), variant.clone(), ev.state_var_id.clone()),
+                (ev.status, ev.score),
+            );
+        }
+    }
+
+    let mut regressions = Vec::new();
+    for snap in current {
+        let experiment = experiment_id_of(snap);
+        let variant = variant_label(snap);
+        for ev in &snap.evaluations {
+            let key = (experiment.clone(), variant.clone(), ev.state_var_id.clone());
+            let Some(&(baseline_status, baseline_score)) = base.get(&key) else {
+                continue;
+            };
+            let status_worse = match (severity(baseline_status), severity(ev.status)) {
+                (Some(was), Some(now)) => now > was,
+                _ => false,
+            };
+            let score_dropped = ev.score + SCORE_REGRESSION_EPSILON < baseline_score;
+            if status_worse || score_dropped {
+                regressions.push(Regression {
+                    experiment_id: experiment.clone(),
+                    variant: variant.clone(),
+                    state_var_id: ev.state_var_id.clone(),
+                    baseline_status,
+                    current_status: ev.status,
+                    baseline_score,
+                    current_score: ev.score,
+                });
+            }
+        }
+    }
+    RegressionReport { regressions }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -240,5 +343,32 @@ mod tests {
         );
         assert_eq!(grounded.cells.len(), 2);
         assert!(grounded.cells.iter().all(Option::is_some));
+    }
+
+    #[test]
+    fn diff_is_clean_against_self_and_flags_a_worsened_cell() {
+        let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode baseline");
+
+        // Identical current → nothing regressed.
+        let same = std::slice::from_ref(&baseline);
+        assert!(diff(same, same).is_clean());
+
+        // Worsen the status and drop the score on a copy → exactly one
+        // regression, on the same (experiment, variant, state-var) cell.
+        let mut regressed = baseline.clone();
+        regressed.evaluations[0].status = StateStatus::Fail;
+        regressed.evaluations[0].score = 0.10;
+        let report = diff(
+            std::slice::from_ref(&baseline),
+            std::slice::from_ref(&regressed),
+        );
+
+        assert!(!report.is_clean());
+        assert_eq!(report.regressions.len(), 1);
+        assert_eq!(report.regressions[0].baseline_status, StateStatus::Pass);
+        assert_eq!(report.regressions[0].current_status, StateStatus::Fail);
     }
 }

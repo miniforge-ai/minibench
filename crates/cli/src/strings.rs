@@ -7,9 +7,16 @@
 //! `miniforge-standards languages/rust` (230) § String constants. Domain
 //! logic references `crate::strings::*` rather than inlining literals.
 
-pub const USAGE: &str = "usage: minibench <compare <dir> | summarize <file.json>>";
+pub const USAGE: &str =
+    "usage: minibench <compare <dir> | summarize <file.json> | diff <baseline-dir> <current-dir>>";
 pub const ERROR_PREFIX: &str = "error:";
 pub const NO_SNAPSHOTS_FOUND: &str = "no *.json snapshots found in";
+
+// diff / regression gate
+pub const NO_REGRESSIONS: &str = "no regressions vs baseline";
+pub const REGRESSIONS_HEADER: &str = "regressions:";
+/// Exit code when `diff` finds regressions — non-zero so CI fails the build.
+pub const REGRESSION_EXIT_CODE: u8 = 3;
 
 // compare matrix
 pub const EXPERIMENT_PREFIX: &str = "experiment:";

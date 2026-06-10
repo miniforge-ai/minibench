@@ -15,19 +15,33 @@ mod strings;
 use std::path::Path;
 use std::process::ExitCode;
 
-use minibench_kernel::{ComparisonCell, ComparisonMatrix, compare, summarize};
+use minibench_kernel::{
+    ComparisonCell, ComparisonMatrix, RegressionReport, compare, diff, summarize,
+};
 use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
-    match (args.first().map(String::as_str), args.get(1)) {
-        (Some("compare"), Some(dir)) => run_compare(Path::new(dir)),
-        (Some("summarize"), Some(file)) => run_summarize(Path::new(file)),
-        _ => {
-            eprintln!("{}", strings::USAGE);
-            ExitCode::FAILURE
-        }
+    match args.first().map(String::as_str) {
+        Some("compare") => match args.get(1) {
+            Some(dir) => run_compare(Path::new(dir)),
+            None => usage(),
+        },
+        Some("summarize") => match args.get(1) {
+            Some(file) => run_summarize(Path::new(file)),
+            None => usage(),
+        },
+        Some("diff") => match (args.get(1), args.get(2)) {
+            (Some(baseline), Some(current)) => run_diff(Path::new(baseline), Path::new(current)),
+            _ => usage(),
+        },
+        _ => usage(),
     }
+}
+
+fn usage() -> ExitCode {
+    eprintln!("{}", strings::USAGE);
+    ExitCode::FAILURE
 }
 
 fn run_summarize(file: &Path) -> ExitCode {
@@ -91,6 +105,59 @@ fn run_compare(dir: &Path) -> ExitCode {
     };
     print_matrix(&compare(&snapshots));
     ExitCode::SUCCESS
+}
+
+/// `minibench diff <baseline-dir> <current-dir>` — report every state
+/// variable that regressed vs the baseline (status worse or score dropped)
+/// and exit non-zero when any did, so CI can fail the build. This closes the
+/// loop: the harness can say a run is *worse*, not merely *different*.
+fn run_diff(baseline_dir: &Path, current_dir: &Path) -> ExitCode {
+    let baseline = match load_dir(baseline_dir) {
+        Ok(snapshots) => snapshots,
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            return ExitCode::FAILURE;
+        }
+    };
+    let current = match load_dir(current_dir) {
+        Ok(snapshots) => snapshots,
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            return ExitCode::FAILURE;
+        }
+    };
+
+    let report = diff(&baseline, &current);
+    print_regressions(&report);
+    if report.is_clean() {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(strings::REGRESSION_EXIT_CODE)
+    }
+}
+
+fn print_regressions(report: &RegressionReport) {
+    if report.is_clean() {
+        println!("{}", strings::NO_REGRESSIONS);
+        return;
+    }
+    println!(
+        "{} {}",
+        strings::REGRESSIONS_HEADER,
+        report.regressions.len()
+    );
+    for regression in &report.regressions {
+        println!(
+            "  {} [{}] {:<34} {} {:.2} -> {} {:.2}",
+            regression.experiment_id,
+            regression.variant,
+            regression.state_var_id,
+            status_str(regression.baseline_status),
+            regression.baseline_score,
+            status_str(regression.current_status),
+            regression.current_score,
+        );
+    }
 }
 
 fn read_snapshot(file: &Path) -> Result<WorkbenchSnapshotV1, String> {

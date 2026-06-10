@@ -34,4 +34,8 @@
   run-app
   {:doc "Build + bundle + launch Minibench.app (open -n -W). A bare `swift run` never shows a window. Start `bb serve` first for live data."
    :requires ([app])
-   :task (app/run-app!)}}}
+   :task (app/run-app!)}
+
+  regression-gate
+  {:doc "Fail if any state variable regressed vs the committed baseline (status worse or score dropped). The CI loop-closing gate."
+   :task (shell "cargo run -q -p minibench-cli -- diff fixtures/baseline fixtures/experiments")}}}
