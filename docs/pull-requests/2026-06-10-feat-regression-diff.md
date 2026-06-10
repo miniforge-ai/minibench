@@ -29,10 +29,13 @@ fixtures, establishing the mechanism the real product baselines will use.
   experiment fixtures — the diff target.
 - **bb.edn**: `regression-gate` task (`minibench diff fixtures/baseline
   fixtures/experiments`).
-- **CI** (`.github/workflows/ci.yml`, minibench's first): cargo build +
-  test, then `bb regression-gate`. Mints a `ci-bot-read` App token and
-  rewrites github.com SSH→HTTPS-with-token so cargo can fetch the private
-  workbench-contract / thesium-app-foundation git deps (the #307 pattern).
+- **CI** (`.github/workflows/ci.yml`, minibench's first): `cargo test` the
+  gate path (kernel + cli + contract), then `bb regression-gate`. Mints a
+  `ci-bot-read` App token and rewrites github.com SSH→HTTPS-with-token so
+  cargo can fetch the private workbench-contract git dep (the #307 pattern).
+  The data-plane crate is excluded — it pulls thesium-app-foundation, whose
+  own `standards/miniforge` submodule cargo inits via libgit2 (bypassing the
+  token); it stays covered by the local `bb pre-commit`.
 
 ## Strata Affected
 
@@ -58,6 +61,9 @@ N/A — local/CI tooling.
 - Follow-up (separate, thesium-workflows): populate the contract's
   `StateEvaluation.regression` field from the adapters; point the experiment
   scripts at the production adapter, not the reference one (Fable F5).
+- Follow-up (thesium-app-foundation): set `update = none` on its
+  `standards/miniforge` submodule so minibench's full workspace (incl. the
+  data-plane) builds in CI without the libgit2 submodule-auth gap.
 
 ## Checklist
 
