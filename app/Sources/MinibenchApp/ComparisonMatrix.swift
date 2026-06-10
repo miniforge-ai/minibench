@@ -12,6 +12,16 @@ struct ComparisonMatrix: Decodable {
     let rows: [ComparisonRow]
 }
 
+/// Sidebar unit — one experiment present in the loaded snapshots, decoded
+/// from `GET /v1/experiments`.
+struct Experiment: Decodable, Identifiable, Hashable {
+    let experimentId: String
+    let product: String
+    let variants: [String]
+
+    var id: String { experimentId }
+}
+
 /// One state-variable row: a cell per variant (absent where a variant did
 /// not evaluate it), the score spread, and whether status diverged.
 struct ComparisonRow: Decodable, Identifiable {

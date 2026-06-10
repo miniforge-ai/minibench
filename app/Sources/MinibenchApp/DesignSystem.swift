@@ -8,18 +8,24 @@ import SwiftUI
 /// token with a docstring. Plain data, no runtime cost.
 enum Tokens {
     enum Window {
-        /// Minimum window width — the matrix needs the id column plus two
-        /// variant columns plus the spread column without truncation.
-        static let minWidth: CGFloat = 760
+        /// Minimum window width — sidebar + the matrix (id column + two
+        /// variant columns + spread) without truncation.
+        static let minWidth: CGFloat = 900
         /// Minimum window height — header + a handful of state-var rows.
-        static let minHeight: CGFloat = 440
+        static let minHeight: CGFloat = 460
+    }
+
+    enum Sidebar {
+        /// Narrow enough to keep the eye on the matrix, wide enough for the
+        /// dotted experiment ids + the variant-count subtitle.
+        static let minWidth: CGFloat = 240
     }
 
     enum Spacing {
         /// Tight — within a cell (status badge ↔ score).
         static let tight: CGFloat = 4
-        /// Normal — between grid rows / grouped controls.
-        static let normal: CGFloat = 12
+        /// Normal — between grid rows / grouped controls (8pt grid step).
+        static let normal: CGFloat = 16
         /// Roomy — between matrix columns, so variants read as columns.
         static let roomy: CGFloat = 24
     }
@@ -30,8 +36,10 @@ enum Tokens {
     }
 }
 
-/// Status → presentation. Semantic system colors for slice 1; a richer
-/// Miniforge palette is a later design pass.
+/// Status → presentation. Status colors derive from the macOS system
+/// semantic palette (per `design/ux-miniforge`: systemGreen / systemYellow /
+/// systemRed) so they adapt to light/dark mode; muted label colors carry the
+/// de-emphasized states.
 extension StateStatus {
     var label: String {
         switch self {
@@ -46,11 +54,11 @@ extension StateStatus {
 
     var tint: Color {
         switch self {
-        case .pass: .green
-        case .warn: .orange
-        case .fail: .red
-        case .blocked: .gray
-        case .notApplicable, .unknown: .secondary
+        case .pass: Color(.systemGreen)
+        case .warn: Color(.systemYellow)
+        case .fail: Color(.systemRed)
+        case .blocked: Color(.secondaryLabelColor)
+        case .notApplicable, .unknown: Color(.tertiaryLabelColor)
         }
     }
 }

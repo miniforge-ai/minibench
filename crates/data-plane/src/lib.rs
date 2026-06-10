@@ -11,13 +11,17 @@
 
 pub mod strings;
 
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use axum::extract::Path as RoutePath;
+use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use minibench_kernel::{ComparisonMatrix, compare};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thesium_app_foundation_contracts::{
     APP_CONFIG_V1, AppConfigV1, DistributionV1, LicenseValidationResponseV1,
@@ -112,6 +116,65 @@ impl DataPlaneProvider for WorkbenchProvider {
 /// snapshots. The foundation router is domain-neutral (the five snapshot
 /// routes only), so the roll-up rides this route, not the foundation's.
 pub const COMPARISON_ROUTE: &str = "/v1/comparison";
+/// Lists the experiments present in the loaded snapshots (sidebar source).
+pub const EXPERIMENTS_ROUTE: &str = "/v1/experiments";
+/// The comparison matrix for one experiment, by id.
+pub const EXPERIMENT_MATRIX_ROUTE: &str = "/v1/experiments/:id/matrix";
+
+/// One experiment in the loaded snapshots — its tenant product and the
+/// variant labels under it. The Swift shell lists these in the sidebar.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ExperimentSummary {
+    pub experiment_id: String,
+    pub product: String,
+    pub variants: Vec<String>,
+}
+
+/// Group the loaded snapshots by `variant.experiment_id`, in first-seen
+/// order. Snapshots with no variant (not part of an experiment) are skipped.
+fn experiments(snapshots: &[WorkbenchSnapshotV1]) -> Vec<ExperimentSummary> {
+    let mut order: Vec<String> = Vec::new();
+    let mut by_id: HashMap<String, ExperimentSummary> = HashMap::new();
+    for snap in snapshots {
+        if let Some(variant) = &snap.variant {
+            let summary = by_id
+                .entry(variant.experiment_id.clone())
+                .or_insert_with(|| {
+                    order.push(variant.experiment_id.clone());
+                    ExperimentSummary {
+                        experiment_id: variant.experiment_id.clone(),
+                        product: snap.product.clone(),
+                        variants: Vec::new(),
+                    }
+                });
+            if !summary.variants.contains(&variant.label) {
+                summary.variants.push(variant.label.clone());
+            }
+        }
+    }
+    order
+        .into_iter()
+        .filter_map(|id| by_id.remove(&id))
+        .collect()
+}
+
+/// The matrix for one experiment, or `None` when no loaded snapshot carries
+/// that id (so the route can 404 rather than serve an empty matrix).
+fn experiment_matrix(
+    snapshots: &[WorkbenchSnapshotV1],
+    experiment_id: &str,
+) -> Option<ComparisonMatrix> {
+    let group: Vec<WorkbenchSnapshotV1> = snapshots
+        .iter()
+        .filter(|s| s.variant.as_ref().map(|v| v.experiment_id.as_str()) == Some(experiment_id))
+        .cloned()
+        .collect();
+    if group.is_empty() {
+        None
+    } else {
+        Some(compare(&group))
+    }
+}
 
 async fn handle_comparison(
     Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
@@ -119,14 +182,38 @@ async fn handle_comparison(
     Json(compare(&snapshots))
 }
 
+async fn handle_experiments(
+    Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
+) -> Json<Vec<ExperimentSummary>> {
+    Json(experiments(&snapshots))
+}
+
+async fn handle_experiment_matrix(
+    Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
+    RoutePath(experiment_id): RoutePath<String>,
+) -> Result<Json<ComparisonMatrix>, StatusCode> {
+    experiment_matrix(&snapshots, &experiment_id)
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
+}
+
 /// The foundation's five-route router around a [`WorkbenchProvider`], plus
-/// minibench's comparison route ([`COMPARISON_ROUTE`]). The decoded
-/// snapshots ride an `Extension` layer on that one route, so the foundation
-/// router's state type is unchanged — no `merge` of differing state types.
+/// minibench's comparison + experiment routes. The decoded snapshots ride
+/// an `Extension` layer on each added route, so the foundation router's
+/// state type is unchanged (no `merge` of differing state types).
 pub fn router(provider: WorkbenchProvider) -> Router {
     let snapshots = Arc::new(provider.decoded_snapshots());
-    build_router(provider).route(
-        COMPARISON_ROUTE,
-        get(handle_comparison).layer(Extension(snapshots)),
-    )
+    build_router(provider)
+        .route(
+            COMPARISON_ROUTE,
+            get(handle_comparison).layer(Extension(snapshots.clone())),
+        )
+        .route(
+            EXPERIMENTS_ROUTE,
+            get(handle_experiments).layer(Extension(snapshots.clone())),
+        )
+        .route(
+            EXPERIMENT_MATRIX_ROUTE,
+            get(handle_experiment_matrix).layer(Extension(snapshots)),
+        )
 }

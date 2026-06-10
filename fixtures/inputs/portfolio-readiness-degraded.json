@@ -1,0 +1,12 @@
+{
+  "_comment": "Synthetic, non-personal — the 'degraded' variant of the portfolio readiness experiment: a failed lens, dropped observations, and missing inputs, so validation_readiness / fidelity_gate score below the healthy baseline and the matrix diverges.",
+  "gate_status": "failed",
+  "lens_count": 2,
+  "ready_lens_count": 1,
+  "failed_lens_count": 1,
+  "assembly_summary": { "dropped_observation_frequency": 0.25 },
+  "lenses": [
+    { "missing_input_frequency": 0.0, "fallback_method_frequency": 0.0 },
+    { "missing_input_frequency": 0.5, "fallback_method_frequency": 0.3 }
+  ]
+}
