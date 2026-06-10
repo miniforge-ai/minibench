@@ -256,7 +256,7 @@ dependencies = [
  "minibench-kernel",
  "serde",
  "serde_json",
- "thesium-app-foundation-contracts",
+ "thesium-app-foundation-contracts 0.1.0 (git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=20eaee2621694964a780282b5ee35ad496fb84d1)",
  "thesium-app-foundation-data-plane",
  "tokio",
  "tower 0.4.13",
@@ -459,6 +459,15 @@ checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 [[package]]
 name = "thesium-app-foundation-contracts"
 version = "0.1.0"
+source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=20eaee2621694964a780282b5ee35ad496fb84d1#20eaee2621694964a780282b5ee35ad496fb84d1"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "thesium-app-foundation-contracts"
+version = "0.1.0"
 source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1#daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1"
 dependencies = [
  "serde",
@@ -468,13 +477,13 @@ dependencies = [
 [[package]]
 name = "thesium-app-foundation-data-plane"
 version = "0.1.0"
-source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1#daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1"
+source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=20eaee2621694964a780282b5ee35ad496fb84d1#20eaee2621694964a780282b5ee35ad496fb84d1"
 dependencies = [
  "async-trait",
  "axum",
  "serde",
  "serde_json",
- "thesium-app-foundation-contracts",
+ "thesium-app-foundation-contracts 0.1.0 (git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=20eaee2621694964a780282b5ee35ad496fb84d1)",
  "thiserror",
  "tokio",
 ]
@@ -621,7 +630,7 @@ source = "git+ssh://git@github.com/miniforge-ai/workbench-contract.git?rev=3196b
 dependencies = [
  "serde",
  "serde_json",
- "thesium-app-foundation-contracts",
+ "thesium-app-foundation-contracts 0.1.0 (git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=daeb3ecb0a42117e572c7202e38e6f2ed0fee3e1)",
 ]
 
 [[package]]
