@@ -254,6 +254,7 @@ dependencies = [
  "async-trait",
  "axum",
  "minibench-kernel",
+ "serde",
  "serde_json",
  "thesium-app-foundation-contracts",
  "thesium-app-foundation-data-plane",
