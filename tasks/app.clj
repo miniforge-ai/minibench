@@ -11,7 +11,9 @@
    asserts a bundle context). The .app bundle is the required launch path."
   (:require [babashka.fs :as fs]
             [babashka.process :as p]
-            [clojure.string :as str]))
+            [clojure.java.io :as io]
+            [clojure.string :as str]
+            [selmer.parser :as selmer]))
 
 (def ^:private package-dir "app")
 (def ^:private exec-name "MinibenchApp")
@@ -20,27 +22,18 @@
 (def ^:private copyright-line
   "Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.")
 
+;; Selmer template under tasks/ (a classpath root via bb.edn :paths), the
+;; same pattern as miniforge-control. Selmer ships built-in with babashka.
+(def ^:private info-plist-template "templates/Info.plist.selmer")
+
 (defn- info-plist []
-  (str/join "\n"
-            ["<?xml version=\"1.0\" encoding=\"UTF-8\"?>"
-             "<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">"
-             "<plist version=\"1.0\">"
-             "<dict>"
-             "  <key>CFBundleDevelopmentRegion</key><string>en</string>"
-             (str "  <key>CFBundleExecutable</key><string>" exec-name "</string>")
-             (str "  <key>CFBundleIdentifier</key><string>" bundle-id "</string>")
-             "  <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>"
-             (str "  <key>CFBundleName</key><string>" app-name "</string>")
-             (str "  <key>CFBundleDisplayName</key><string>" app-name "</string>")
-             "  <key>CFBundlePackageType</key><string>APPL</string>"
-             "  <key>CFBundleShortVersionString</key><string>dev-local</string>"
-             "  <key>CFBundleVersion</key><string>dev-local</string>"
-             "  <key>LSMinimumSystemVersion</key><string>14.0</string>"
-             "  <key>NSHighResolutionCapable</key><true/>"
-             "  <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>"
-             (str "  <key>NSHumanReadableCopyright</key><string>" copyright-line "</string>")
-             "</dict>"
-             "</plist>"]))
+  (selmer/render (slurp (io/resource info-plist-template))
+                 {:exec_name    exec-name
+                  :bundle_id    bundle-id
+                  :display_name app-name
+                  :app_version  "dev-local"
+                  :app_build    "dev-local"
+                  :copyright    copyright-line}))
 
 (defn build!
   "swift build the app package."
