@@ -23,8 +23,15 @@
 
   build-app
   {:doc "Build the SwiftUI shell (app/)."
-   :task (shell "swift build --package-path app")}
+   :requires ([app])
+   :task (app/build!)}
+
+  package-app
+  {:doc "Assemble Minibench.app around the built executable (Info.plist, ad-hoc sign)."
+   :requires ([app])
+   :task (app/package!)}
 
   run-app
-  {:doc "Run the SwiftUI shell. Start `bb serve` in another shell first."
-   :task (shell "swift run --package-path app MinibenchApp")}}}
+  {:doc "Build + bundle + launch Minibench.app (open -n -W). A bare `swift run` never shows a window. Start `bb serve` first for live data."
+   :requires ([app])
+   :task (app/run-app!)}}}
