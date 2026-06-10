@@ -35,11 +35,15 @@ final class AppStore {
         do {
             let experiments: [Experiment] = try await fetch(Routes.experiments)
             experimentsPhase = .loaded(experiments)
+            let previous = selectedId
             if selectedId == nil || !experiments.contains(where: { $0.id == selectedId }) {
                 selectedId = experiments.first?.id
             }
+            // If the selection is unchanged (e.g. refresh with the same id),
+            // the ContentView observer won't fire — load the matrix here. If
+            // it changed, the observer handles it (so we don't double-fetch).
             if let id = selectedId {
-                await loadMatrix(for: id)
+                if id == previous { await loadMatrix(for: id) }
             } else {
                 matrixPhase = .empty
             }
@@ -54,10 +58,15 @@ final class AppStore {
     func loadMatrix(for experimentId: String) async {
         matrixPhase = .loading
         do {
-            matrixPhase = .loaded(try await fetch(Routes.matrix(experimentId)))
+            let matrix: ComparisonMatrix = try await fetch(Routes.matrix(experimentId))
+            // Drop a stale response if a newer selection superseded this one.
+            guard selectedId == experimentId else { return }
+            matrixPhase = .loaded(matrix)
         } catch let error as LoadError {
+            guard selectedId == experimentId else { return }
             matrixPhase = .failed(error.message)
         } catch {
+            guard selectedId == experimentId else { return }
             matrixPhase = .failed(Strings.errorUnreachable)
         }
     }

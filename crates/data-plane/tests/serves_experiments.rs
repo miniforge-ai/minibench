@@ -48,7 +48,7 @@ async fn decode<T: DeserializeOwned>(response: Response) -> T {
 }
 
 #[tokio::test]
-async fn lists_experiments_grouped_by_product() {
+async fn lists_experiments() {
     let response = router(provider())
         .oneshot(get(EXPERIMENTS_ROUTE))
         .await
@@ -84,4 +84,13 @@ async fn serves_one_experiment_matrix() {
     // validation_readiness + fidelity_gate, both diverge across the variants.
     assert_eq!(matrix.rows.len(), 2);
     assert!(matrix.rows.iter().all(|r| r.status_divergence));
+}
+
+#[tokio::test]
+async fn unknown_experiment_is_404() {
+    let response = router(provider())
+        .oneshot(get("/v1/experiments/does.not.exist/matrix"))
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

@@ -17,6 +17,7 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use axum::extract::Path as RoutePath;
+use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use minibench_kernel::{ComparisonMatrix, compare};
@@ -146,7 +147,9 @@ fn experiments(snapshots: &[WorkbenchSnapshotV1]) -> Vec<ExperimentSummary> {
                         variants: Vec::new(),
                     }
                 });
-            summary.variants.push(variant.label.clone());
+            if !summary.variants.contains(&variant.label) {
+                summary.variants.push(variant.label.clone());
+            }
         }
     }
     order
@@ -155,13 +158,22 @@ fn experiments(snapshots: &[WorkbenchSnapshotV1]) -> Vec<ExperimentSummary> {
         .collect()
 }
 
-fn experiment_matrix(snapshots: &[WorkbenchSnapshotV1], experiment_id: &str) -> ComparisonMatrix {
+/// The matrix for one experiment, or `None` when no loaded snapshot carries
+/// that id (so the route can 404 rather than serve an empty matrix).
+fn experiment_matrix(
+    snapshots: &[WorkbenchSnapshotV1],
+    experiment_id: &str,
+) -> Option<ComparisonMatrix> {
     let group: Vec<WorkbenchSnapshotV1> = snapshots
         .iter()
         .filter(|s| s.variant.as_ref().map(|v| v.experiment_id.as_str()) == Some(experiment_id))
         .cloned()
         .collect();
-    compare(&group)
+    if group.is_empty() {
+        None
+    } else {
+        Some(compare(&group))
+    }
 }
 
 async fn handle_comparison(
@@ -179,8 +191,10 @@ async fn handle_experiments(
 async fn handle_experiment_matrix(
     Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
     RoutePath(experiment_id): RoutePath<String>,
-) -> Json<ComparisonMatrix> {
-    Json(experiment_matrix(&snapshots, &experiment_id))
+) -> Result<Json<ComparisonMatrix>, StatusCode> {
+    experiment_matrix(&snapshots, &experiment_id)
+        .map(Json)
+        .ok_or(StatusCode::NOT_FOUND)
 }
 
 /// The foundation's five-route router around a [`WorkbenchProvider`], plus

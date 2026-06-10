@@ -9,21 +9,17 @@ import Foundation
 enum Strings {
     static let appTitle = "Minibench"
 
-    /// The data-plane comparison route on loopback (risk :8787, career
-    /// :8788, minibench :8789).
-    static let comparisonEndpoint = "http://127.0.0.1:8789/v1/comparison"
-
     // Phase / chrome
-    static let loading = "Loading comparison…"
+    static let loading = "Loading…"
     static let refresh = "Refresh"
     static let emptyMatrix = "No experiment loaded."
 
     // Errors
-    static let errorTitle = "Comparison unavailable"
-    static let errorBadEndpoint = "The comparison endpoint URL is invalid."
+    static let errorTitle = "Unavailable"
+    static let errorBadEndpoint = "The endpoint URL is invalid."
     static let errorBadStatus = "The data-plane returned an unexpected status."
     static let errorUnreachable = "Can't reach the data-plane on :8789. Start it with `bb serve`."
-    static let errorBadPayload = "The data-plane responded, but the comparison payload didn't decode."
+    static let errorBadPayload = "The data-plane responded, but the payload didn't decode."
 
     // Sidebar / detail
     static let selectExperiment = "Select an experiment"
