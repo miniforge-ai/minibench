@@ -25,6 +25,11 @@ enum Strings {
     static let errorUnreachable = "Can't reach the data-plane on :8789. Start it with `bb serve`."
     static let errorBadPayload = "The data-plane responded, but the comparison payload didn't decode."
 
+    // Sidebar / detail
+    static let selectExperiment = "Select an experiment"
+    static let noExperiments = "No experiments loaded. Start the data-plane with `bb serve`."
+    static let variantsSuffix = "variants"
+
     // Matrix columns / marks
     static let colStateVar = "State variable"
     static let colSpread = "Spread"

@@ -7,7 +7,7 @@
     "method" : "semantic"
   },
   "run_id" : "run-opus+semantic",
-  "generated_at" : "2026-06-08T04:50:04.366585Z",
+  "generated_at" : "2026-06-10T16:07:46.111104Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
@@ -45,7 +45,7 @@
     "product" : "career",
     "status" : "pass",
     "score" : 0.88,
-    "evaluated_at" : "2026-06-08T04:50:04.366585Z",
+    "evaluated_at" : "2026-06-10T16:07:46.111104Z",
     "confidence" : 0.94
   } ],
   "registry_ref" : {

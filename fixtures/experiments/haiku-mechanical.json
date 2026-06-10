@@ -7,7 +7,7 @@
     "method" : "mechanical"
   },
   "run_id" : "run-haiku+mechanical",
-  "generated_at" : "2026-06-08T04:50:06.995014Z",
+  "generated_at" : "2026-06-10T16:07:49.186121Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
@@ -48,7 +48,7 @@
     "product" : "career",
     "status" : "fail",
     "score" : 0.43,
-    "evaluated_at" : "2026-06-08T04:50:06.995014Z",
+    "evaluated_at" : "2026-06-10T16:07:49.186121Z",
     "confidence" : 0.72
   } ],
   "registry_ref" : {

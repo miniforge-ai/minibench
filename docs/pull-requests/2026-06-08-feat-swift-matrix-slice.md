@@ -1,11 +1,29 @@
-# feat: SwiftUI shell slice 1 — render the comparison matrix natively
+# feat: SwiftUI shell slices 1–2 — comparison matrix + experiment navigation
 
 ## Overview
 
-The first slice of the Minibench shell: a macOS SwiftUI window that renders
-the kernel's `ComparisonMatrix` — the permutation matrix the CLI prints —
-fetched over HTTP from the data-plane on `:8789`. Plus the data-plane route
-that serves it. Miniforge UX (it's a Miniforge product, not Thesium).
+The Minibench shell (`app/`, Miniforge UX — it's a Miniforge product, not
+Thesium). **Slice 1:** a window rendering the kernel's `ComparisonMatrix`
+over HTTP from the data-plane. **Slice 2:** a two-pane shell — a sidebar
+listing experiments grouped by tenant, detail rendering the selected one's
+matrix — plus richer fixtures (a second experiment) and the data-plane
+endpoints that group snapshots by experiment.
+
+## Slice 2 — what it adds
+
+- **Data-plane:** `GET /v1/experiments` (group loaded snapshots by
+  `variant.experiment_id`) + `GET /v1/experiments/:id/matrix`. Two route
+  integration tests.
+- **Fixtures:** a second experiment — `portfolio.readiness` under two
+  diverging variants (healthy vs degraded inputs) → a real 2-row matrix
+  (`validation_readiness` fail/pass, `fidelity_gate` warn/pass). The single
+  `portfolio-daily.json` is replaced.
+- **App:** `NavigationSplitView` — `ExperimentSidebar` (grouped by product,
+  selection-bound) → `MatrixView` detail; `AppStore` (`@Observable`) drives
+  both panes. `MatrixView` is now a pure render of a passed-in matrix;
+  `MatrixStore` removed.
+
+Addresses the "single-row, no interaction" feedback on slice 1.
 
 ## Motivation
 

@@ -23,6 +23,7 @@ path = "src/main.rs"
 async-trait = { workspace = true }
 axum = { workspace = true }
 tokio = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
 thesium-app-foundation-contracts = { workspace = true }
 thesium-app-foundation-data-plane = { workspace = true }

@@ -2,74 +2,49 @@
 
 import SwiftUI
 
-/// L2 view — renders the comparison matrix: state-variable rows × variant
-/// columns, with the score spread and a divergence mark. The same matrix
-/// the CLI prints, native.
+/// L2 view — renders one comparison matrix: state-variable rows × variant
+/// columns, with the score spread and a divergence mark. Pure render of a
+/// passed-in matrix; fetch + phase live in the store / ContentView.
 struct MatrixView: View {
-    @Environment(MatrixStore.self) private var store
+    let matrix: ComparisonMatrix
 
     var body: some View {
-        content
-            .padding(Tokens.Padding.pane)
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button(Strings.refresh, systemImage: "arrow.clockwise") {
-                        Task { await store.load() }
-                    }
-                }
-            }
-    }
-
-    @ViewBuilder
-    private var content: some View {
-        switch store.phase {
-        case .idle, .loading:
-            ProgressView(Strings.loading)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        case .failed(let message):
-            ContentUnavailableView(
-                Strings.errorTitle,
-                systemImage: "bolt.horizontal.circle",
-                description: Text(message)
-            )
-        case .loaded(let matrix):
-            matrixGrid(matrix)
-        }
-    }
-
-    private func matrixGrid(_ matrix: ComparisonMatrix) -> some View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.normal) {
             Text(matrix.experimentId)
                 .font(.title3.weight(.semibold))
+            grid
+        }
+        .padding(Tokens.Padding.pane)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
 
-            Grid(
-                alignment: .leadingFirstTextBaseline,
-                horizontalSpacing: Tokens.Spacing.roomy,
-                verticalSpacing: Tokens.Spacing.normal
-            ) {
+    private var grid: some View {
+        Grid(
+            alignment: .leadingFirstTextBaseline,
+            horizontalSpacing: Tokens.Spacing.roomy,
+            verticalSpacing: Tokens.Spacing.normal
+        ) {
+            GridRow {
+                Text(Strings.colStateVar)
+                ForEach(matrix.variants, id: \.self) { Text($0) }
+                Text(Strings.colSpread)
+            }
+            .font(.caption.weight(.semibold))
+            .foregroundStyle(.secondary)
+
+            // Span the full grid width: id column + one per variant + spread.
+            GridRow {
+                Divider().gridCellColumns(matrix.variants.count + 2)
+            }
+
+            ForEach(matrix.rows) { row in
                 GridRow {
-                    Text(Strings.colStateVar)
-                    ForEach(matrix.variants, id: \.self) { Text($0) }
-                    Text(Strings.colSpread)
-                }
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-
-                // Span the full grid width: id column + one per variant + spread.
-                GridRow {
-                    Divider().gridCellColumns(matrix.variants.count + 2)
-                }
-
-                ForEach(matrix.rows) { row in
-                    GridRow {
-                        Text(row.stateVarId)
-                            .font(.system(.body, design: .monospaced))
-                        ForEach(Array(row.cells.enumerated()), id: \.offset) { item in
-                            cell(item.element)
-                        }
-                        spread(row)
+                    Text(row.stateVarId)
+                        .font(.system(.body, design: .monospaced))
+                    ForEach(Array(row.cells.enumerated()), id: \.offset) { item in
+                        cell(item.element)
                     }
+                    spread(row)
                 }
             }
         }

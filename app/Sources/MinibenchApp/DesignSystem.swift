@@ -8,11 +8,17 @@ import SwiftUI
 /// token with a docstring. Plain data, no runtime cost.
 enum Tokens {
     enum Window {
-        /// Minimum window width — the matrix needs the id column plus two
-        /// variant columns plus the spread column without truncation.
-        static let minWidth: CGFloat = 760
+        /// Minimum window width — sidebar + the matrix (id column + two
+        /// variant columns + spread) without truncation.
+        static let minWidth: CGFloat = 900
         /// Minimum window height — header + a handful of state-var rows.
-        static let minHeight: CGFloat = 440
+        static let minHeight: CGFloat = 460
+    }
+
+    enum Sidebar {
+        /// Narrow enough to keep the eye on the matrix, wide enough for the
+        /// dotted experiment ids + the variant-count subtitle.
+        static let minWidth: CGFloat = 240
     }
 
     enum Spacing {

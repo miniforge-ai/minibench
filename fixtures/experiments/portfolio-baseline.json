@@ -1,12 +1,12 @@
 {
   "schema_version" : "workbench_snapshot/v1",
   "variant" : {
-    "experiment_id" : "portfolio.daily",
+    "experiment_id" : "portfolio.readiness",
     "label" : "baseline",
     "model" : "risk-pipeline"
   },
   "run_id" : "run-baseline",
-  "generated_at" : "2026-06-08T04:50:09.609488Z",
+  "generated_at" : "2026-06-10T16:07:52.204698Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
@@ -35,7 +35,7 @@
     "product" : "portfolio",
     "status" : "pass",
     "score" : 1.0,
-    "evaluated_at" : "2026-06-08T04:50:09.609488Z",
+    "evaluated_at" : "2026-06-10T16:07:52.204698Z",
     "confidence" : 0.95
   }, {
     "findings" : [ ],
@@ -51,7 +51,7 @@
     "product" : "portfolio",
     "status" : "pass",
     "score" : 1.0,
-    "evaluated_at" : "2026-06-08T04:50:09.609488Z",
+    "evaluated_at" : "2026-06-10T16:07:52.204698Z",
     "confidence" : 0.95
   } ],
   "registry_ref" : {

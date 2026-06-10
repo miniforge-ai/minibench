@@ -56,9 +56,13 @@
           "--out" (out "experiments" "haiku-mechanical.json")
           "--experiment-id" experiment "--label" "haiku+mechanical"
           "--model" "claude-haiku-4-5" "--method" "mechanical")
-      ;; Portfolio — a second real tenant, single daily snapshot.
+      ;; Portfolio — a second tenant, one readiness experiment under two
+      ;; variants (healthy vs degraded inputs) so its matrix diverges too.
       (tw "workbench:portfolio-snapshot" "--readiness" (input "portfolio-readiness.json")
-          "--out" (out "portfolio-daily.json")
-          "--experiment-id" "portfolio.daily" "--label" "baseline" "--model" "risk-pipeline")
+          "--out" (out "experiments" "portfolio-baseline.json")
+          "--experiment-id" "portfolio.readiness" "--label" "baseline" "--model" "risk-pipeline")
+      (tw "workbench:portfolio-snapshot" "--readiness" (input "portfolio-readiness-degraded.json")
+          "--out" (out "experiments" "portfolio-degraded.json")
+          "--experiment-id" "portfolio.readiness" "--label" "degraded" "--model" "risk-pipeline")
       (println "Regenerated fixtures from real adapter output.")
       (println "  cargo run -p minibench-cli -- compare fixtures/experiments"))))

@@ -48,15 +48,17 @@ cargo run -p minibench-cli -- compare fixtures/experiments
 `fixtures/sample-snapshot.json` stays hand-written — it stands in for the
 miniforge tenant, whose adapter doesn't exist yet.
 
-## Shell (macOS, slice 1)
+## Shell (macOS)
 
-A native SwiftUI window (`app/`, Miniforge UX) renders the comparison
-matrix. The Rust/Swift seam is HTTP — the data-plane's added
-`GET /v1/comparison` route, which runs the kernel over the loaded snapshots.
+A native SwiftUI app (`app/`, Miniforge UX) — a two-pane shell: a sidebar
+listing experiments grouped by tenant, and a detail pane rendering the
+selected experiment's comparison matrix. The Rust/Swift seam is HTTP; the
+data-plane groups loaded snapshots by experiment and serves
+`GET /v1/experiments` (the list) and `GET /v1/experiments/:id/matrix`.
 
 ```bash
-bb serve       # data-plane on :8789, serving the career experiment fixtures
-bb run-app     # the SwiftUI window (in another shell)
+bb serve       # data-plane on :8789, serving the experiment fixtures
+bb run-app     # builds the .app bundle + opens it (in another shell)
 ```
 
 ## Deferred to later slices
