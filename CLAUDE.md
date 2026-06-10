@@ -15,8 +15,9 @@ at `standards/miniforge/`. Load them before any task. A fresh clone needs
 
 Minibench is the workbench **app shell** — infrastructure that hosts and
 renders the cross-product state validation tenants emit as
-`workbench_snapshot/v1`. A Rust workspace (`kernel` / `data-plane` / `cli`),
-later a SwiftUI shell. It never links a product's domain crate.
+`workbench_snapshot/v1`. A Rust workspace (`kernel` / `data-plane` / `cli`)
+plus a SwiftUI shell (`app/`, Miniforge UX — minibench is a Miniforge
+product, not Thesium). It never links a product's domain crate.
 
 ## Conventions (the ones that bite)
 

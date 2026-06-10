@@ -12,14 +12,18 @@
 pub mod strings;
 
 use std::path::Path;
+use std::sync::Arc;
 
 use async_trait::async_trait;
-use axum::Router;
+use axum::routing::get;
+use axum::{Extension, Json, Router};
+use minibench_kernel::{ComparisonMatrix, compare};
 use serde_json::Value;
 use thesium_app_foundation_contracts::{
     APP_CONFIG_V1, AppConfigV1, DistributionV1, LicenseValidationResponseV1,
 };
 use thesium_app_foundation_data_plane::{DataPlaneProvider, build_router};
+use workbench_contract::WorkbenchSnapshotV1;
 
 /// Serves workbench snapshots held in memory. A snapshot is a
 /// `WorkbenchSnapshotV1` body; here it stays a `Value` because the
@@ -58,6 +62,15 @@ impl WorkbenchProvider {
             ga.cmp(gb)
         })
     }
+
+    /// Decode the held snapshot `Value`s into the typed contract, skipping
+    /// any that do not conform — the kernel reads only typed snapshots.
+    fn decoded_snapshots(&self) -> Vec<WorkbenchSnapshotV1> {
+        self.snapshots
+            .iter()
+            .filter_map(|v| serde_json::from_value(v.clone()).ok())
+            .collect()
+    }
 }
 
 #[async_trait]
@@ -95,7 +108,25 @@ impl DataPlaneProvider for WorkbenchProvider {
     }
 }
 
-/// Build the foundation's five-route router around a [`WorkbenchProvider`].
+/// Minibench's added route — the kernel comparison matrix over the loaded
+/// snapshots. The foundation router is domain-neutral (the five snapshot
+/// routes only), so the roll-up rides this route, not the foundation's.
+pub const COMPARISON_ROUTE: &str = "/v1/comparison";
+
+async fn handle_comparison(
+    Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
+) -> Json<ComparisonMatrix> {
+    Json(compare(&snapshots))
+}
+
+/// The foundation's five-route router around a [`WorkbenchProvider`], plus
+/// minibench's comparison route ([`COMPARISON_ROUTE`]). The decoded
+/// snapshots ride an `Extension` layer on that one route, so the foundation
+/// router's state type is unchanged — no `merge` of differing state types.
 pub fn router(provider: WorkbenchProvider) -> Router {
-    build_router(provider)
+    let snapshots = Arc::new(provider.decoded_snapshots());
+    build_router(provider).route(
+        COMPARISON_ROUTE,
+        get(handle_comparison).layer(Extension(snapshots)),
+    )
 }

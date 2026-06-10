@@ -1,16 +1,37 @@
 ;; Title: Minibench
-;; Subtitle: Babashka tasks — pre-commit gate + fixture regen (bb-over-shell, 740)
+;; Subtitle: Babashka tasks — pre-commit gate, fixture regen, app build/run (bb-over-shell, 740)
 ;; Author: Christopher Lester
 ;; Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
 {:paths ["tasks"]
  :tasks
  {pre-commit
-  {:doc "Pre-commit gate: cargo fmt + clippy (deny warnings) + tests. Run by .githooks/pre-commit; never bypass."
+  {:doc "Pre-commit gate: cargo fmt + clippy (deny warnings) + tests, then swift build. Run by .githooks/pre-commit; never bypass."
    :task (do (shell "cargo fmt --all --check")
              (shell "cargo clippy --workspace --all-targets --all-features -- -D warnings")
-             (shell "cargo test --workspace --all-targets --all-features"))}
+             (shell "cargo test --workspace --all-targets --all-features")
+             (shell "swift build --package-path app"))}
 
   regen-fixtures
   {:doc "Regenerate demo fixtures from the real workbench adapters. Needs a thesium-workflows checkout (set THESIUM_WORKFLOWS) + babashka."
    :requires ([regen])
-   :task (regen/fixtures!)}}}
+   :task (regen/fixtures!)}
+
+  serve
+  {:doc "Run the data-plane on :8789 serving the career experiment fixtures — the app's data source."
+   :task (shell {:extra-env {"MINIBENCH_SNAPSHOT_DIR" "fixtures/experiments"}}
+                "cargo run -p minibench-data-plane")}
+
+  build-app
+  {:doc "Build the SwiftUI shell (app/)."
+   :requires ([app])
+   :task (app/build!)}
+
+  package-app
+  {:doc "Assemble Minibench.app around the built executable (Info.plist, ad-hoc sign)."
+   :requires ([app])
+   :task (app/package!)}
+
+  run-app
+  {:doc "Build + bundle + launch Minibench.app (open -n -W). A bare `swift run` never shows a window. Start `bb serve` first for live data."
+   :requires ([app])
+   :task (app/run-app!)}}}

@@ -48,10 +48,22 @@ cargo run -p minibench-cli -- compare fixtures/experiments
 `fixtures/sample-snapshot.json` stays hand-written — it stands in for the
 miniforge tenant, whose adapter doesn't exist yet.
 
+## Shell (macOS, slice 1)
+
+A native SwiftUI window (`app/`, Miniforge UX) renders the comparison
+matrix. The Rust/Swift seam is HTTP — the data-plane's added
+`GET /v1/comparison` route, which runs the kernel over the loaded snapshots.
+
+```bash
+bb serve       # data-plane on :8789, serving the career experiment fixtures
+bb run-app     # the SwiftUI window (in another shell)
+```
+
 ## Deferred to later slices
 
-- **Swift UI shell** — the three view tiers (generic registry-driven
-  views, the shared primitive kit, bespoke product view plugins).
+- **Swift UI shell tiers** — slice 1 (the comparison-matrix window) lives in
+  `app/`. Still deferred: the experiment picker, the shared primitive kit,
+  and the bespoke per-tenant view plugins (claim graph, equity curve, PR fleet).
 - **Kernel** — regression diff, narration-packet assembly,
   registry-driven generic evaluators.
 - **Live feed for miniforge** — once a miniforge adapter exists,
