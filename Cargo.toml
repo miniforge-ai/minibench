@@ -35,5 +35,5 @@ tower = { version = "0.4", features = ["util"] }
 # SSH fetch. Bump the revs to adopt upstream changes.
 thesium-app-foundation-contracts = { git = "ssh://git@github.com/miniforge-ai/thesium-app-foundation.git", rev = "20eaee2621694964a780282b5ee35ad496fb84d1" }
 thesium-app-foundation-data-plane = { git = "ssh://git@github.com/miniforge-ai/thesium-app-foundation.git", rev = "20eaee2621694964a780282b5ee35ad496fb84d1" }
-workbench-contract = { git = "ssh://git@github.com/miniforge-ai/workbench-contract.git", rev = "3196b5fae38112d765c3a7f994c893bcb0b8318c" }
+workbench-contract = { git = "ssh://git@github.com/miniforge-ai/workbench-contract.git", rev = "5212f32ed9bdbfbc982e9ff746352c2f190d8e12" }
 minibench-kernel = { path = "crates/kernel" }
