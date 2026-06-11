@@ -61,13 +61,28 @@ bb serve       # data-plane on :8789, serving the experiment fixtures
 bb run-app     # builds the .app bundle + opens it (in another shell)
 ```
 
+## Regression gate
+
+The harness can say a run is *worse*, not just *different*. `kernel::diff`
+compares a current run set against a committed baseline and reports every
+state variable whose status got more severe or whose score dropped:
+
+```bash
+bb regression-gate    # minibench diff fixtures/baseline fixtures/experiments
+```
+
+`fixtures/baseline/` is the known-good freeze. CI (`.github/workflows/ci.yml`)
+runs this on every PR and **fails on any regression**; to accept a new
+result, update the baseline. That closes the loop the workbench exists to
+close — it doesn't just measure, it gates.
+
 ## Deferred to later slices
 
 - **Swift UI shell tiers** — slice 1 (the comparison-matrix window) lives in
   `app/`. Still deferred: the experiment picker, the shared primitive kit,
   and the bespoke per-tenant view plugins (claim graph, equity curve, PR fleet).
-- **Kernel** — regression diff, narration-packet assembly,
-  registry-driven generic evaluators.
+- **Kernel** — narration-packet assembly, registry-driven generic
+  evaluators (regression diff shipped — see **Regression gate**).
 - **Live feed for miniforge** — once a miniforge adapter exists,
   regenerate `fixtures/sample-snapshot.json` from it too (career +
   portfolio already feed from their real adapters — see **Live feeds**).

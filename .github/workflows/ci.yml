@@ -1,0 +1,77 @@
+# Minibench — pre-merge CI.
+#
+# cargo build + test, then the regression gate (`minibench diff baseline
+# current`): fail the build when a state variable regressed vs the committed
+# baseline. This closes the loop the workbench exists to close — the harness
+# can say a run is *worse*, not merely *different*.
+#
+# Linux, cargo only. The SwiftUI app is gated by the local `bb pre-commit`
+# (`swift build`); CI on Linux can't build a macOS app.
+#
+# The crates depend on the private workbench-contract + thesium-app-foundation
+# git repos, so the build mints a ci-bot-read App token and rewrites
+# github.com SSH -> HTTPS-with-token for cargo's gitlibs fetch (.cargo/config
+# sets net.git-fetch-with-cli). The App token reaches git via an env var,
+# never interpolated into a shell command line.
+
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: cargo test + regression gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Mint CI bot token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.MINIFORGE_CI_BOT_APPID }}
+          private-key: ${{ secrets.MINIFORGE_CI_BOT_KEY }}
+          owner: miniforge-ai
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate git for private deps
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          git config --global url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "ssh://git@github.com/"
+          git config --global --add url."https://x-access-token:${GH_TOKEN}@github.com/".insteadOf "git@github.com:"
+
+      - name: Install Babashka
+        uses: DeLaGuardo/setup-clojure@13.0
+        with:
+          bb: latest
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          # No ~/.cargo/git: those checkouts' .git/config hold the rewritten
+          # remote URL with the ephemeral App token — don't persist it in a
+          # cache artifact. Private git deps re-fetch each run (cheap).
+          path: |
+            ~/.cargo/registry
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build + test
+        run: cargo test --workspace --all-targets
+
+      - name: Regression gate
+        run: bb regression-gate
