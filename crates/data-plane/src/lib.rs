@@ -29,6 +29,12 @@ use thesium_app_foundation_contracts::{
 use thesium_app_foundation_data_plane::{DataPlaneProvider, build_router};
 use workbench_contract::WorkbenchSnapshotV1;
 
+/// Snapshot timestamp field used by the foundation envelope.
+const GENERATED_AT_FIELD: &str = "generated_at";
+/// Snapshot id field used as a deterministic tie-breaker for equal
+/// `generated_at` values.
+const SNAPSHOT_ID_FIELD: &str = "snapshot_id";
+
 /// Serves workbench snapshots held in memory. A snapshot is a
 /// `WorkbenchSnapshotV1` body; here it stays a `Value` because the
 /// foundation routes are domain-neutral — the typed contract is
@@ -58,12 +64,29 @@ impl WorkbenchProvider {
         Ok(Self::new(snapshots))
     }
 
-    /// Most recent snapshot by `generated_at` (RFC 3339 sorts lexically).
+    /// Most recent snapshot by `generated_at` (RFC 3339 sorts lexically),
+    /// with `snapshot_id` as a deterministic tie-breaker.
     fn latest(&self) -> Option<&Value> {
         self.snapshots.iter().max_by(|a, b| {
-            let ga = a.get("generated_at").and_then(Value::as_str).unwrap_or("");
-            let gb = b.get("generated_at").and_then(Value::as_str).unwrap_or("");
-            ga.cmp(gb)
+            let generated_at_a = a
+                .get(GENERATED_AT_FIELD)
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let generated_at_b = b
+                .get(GENERATED_AT_FIELD)
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let snapshot_id_a = a
+                .get(SNAPSHOT_ID_FIELD)
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            let snapshot_id_b = b
+                .get(SNAPSHOT_ID_FIELD)
+                .and_then(Value::as_str)
+                .unwrap_or("");
+            generated_at_a
+                .cmp(generated_at_b)
+                .then_with(|| snapshot_id_a.cmp(snapshot_id_b))
         })
     }
 

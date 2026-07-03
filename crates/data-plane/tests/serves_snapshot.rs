@@ -16,6 +16,8 @@ use workbench_contract::{WORKBENCH_SNAPSHOT_V1, WorkbenchSnapshotV1};
 
 const LATEST_SNAPSHOT_ROUTE: &str = "/v1/snapshots/latest";
 const CAREER_EXPERIMENT_MATRIX_ROUTE: &str = "/v1/experiments/career.lens.acme-l4-eval/matrix";
+const EARLIER_SNAPSHOT_ID: &str = "wb-miniforge-sample-0001";
+const LATER_SNAPSHOT_ID: &str = "wb-miniforge-sample-0002";
 
 #[tokio::test]
 async fn serves_latest_snapshot_as_valid_contract() {
@@ -50,6 +52,36 @@ async fn serves_latest_snapshot_as_valid_contract() {
         !summary.blocking.is_empty() || summary.fail >= 1,
         "the sample snapshot has a failing/blocking evaluation"
     );
+}
+
+#[tokio::test]
+async fn latest_snapshot_ties_break_by_snapshot_id() {
+    let mut earlier: serde_json::Value =
+        serde_json::from_str(include_str!("../../../fixtures/sample-snapshot.json"))
+            .expect("parse fixture");
+    let mut later = earlier.clone();
+    earlier["snapshot_id"] = serde_json::Value::String(EARLIER_SNAPSHOT_ID.to_string());
+    later["snapshot_id"] = serde_json::Value::String(LATER_SNAPSHOT_ID.to_string());
+    let provider = WorkbenchProvider::new(vec![later, earlier]);
+    let app = router(provider);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri(LATEST_SNAPSHOT_ROUTE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let decoded: WorkbenchSnapshotV1 = serde_json::from_slice(&bytes).expect("decode contract");
+    assert_eq!(decoded.snapshot_id, LATER_SNAPSHOT_ID);
 }
 
 #[tokio::test]
