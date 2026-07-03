@@ -9,8 +9,8 @@ import SwiftUI
 enum Tokens {
     enum Window {
         /// Minimum window width — sidebar + the matrix (id column + two
-        /// variant columns + spread) without truncation.
-        static let minWidth: CGFloat = 900
+        /// variant columns + spread/within/signal metrics) without truncation.
+        static let minWidth: CGFloat = 1120
         /// Minimum window height — header + a handful of state-var rows.
         static let minHeight: CGFloat = 460
     }

@@ -29,6 +29,7 @@ pub const COL_COVERAGE: &str = "coverage";
 pub const COL_UNSTABLE: &str = "unstable";
 pub const DIVERGENCE_MARK: &str = "◆";
 pub const ABSENT_CELL: &str = "—";
+pub const CONFIDENCE_PREFIX: &str = "c";
 pub const WARNING_MISSING_SOURCE_HASHES: &str =
     "source_hashes missing; input equality could not be verified";
 pub const WARNING_MISSING_POLICY_PROVENANCE: &str =
