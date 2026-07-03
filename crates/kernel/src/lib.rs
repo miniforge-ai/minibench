@@ -296,7 +296,7 @@ fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareConte
 
         if snapshot.product != expected_product {
             return Err(CompareError::MixedProducts {
-                expected: expected_product,
+                expected: expected_product.clone(),
                 found: snapshot.product.clone(),
                 snapshot_id: snapshot.snapshot_id.clone(),
             });
