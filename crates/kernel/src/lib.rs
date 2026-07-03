@@ -288,7 +288,7 @@ fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareConte
         let found_experiment_id = experiment_id(snapshot);
         if found_experiment_id != expected_experiment_id {
             return Err(CompareError::MixedExperimentIds {
-                expected: expected_experiment_id,
+                expected: expected_experiment_id.clone(),
                 found: found_experiment_id,
                 snapshot_id: snapshot.snapshot_id.clone(),
             });
