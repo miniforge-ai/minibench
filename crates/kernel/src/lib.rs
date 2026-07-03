@@ -22,6 +22,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use workbench_contract::{
     RegistryRef, StateEvaluation, StateStatus, StateVarRegistry, StateVariable, WorkbenchSnapshotV1,
 };
@@ -60,6 +61,24 @@ const STATE_STATUS_ORDER: &[StateStatus] = &[
     StateStatus::Blocked,
     StateStatus::NotApplicable,
     StateStatus::Unknown,
+];
+/// Snapshot/variant provenance key for a policy content hash.
+const PROVENANCE_KEY_POLICY_HASH: &str = "policy_hash";
+/// Snapshot/variant provenance key for a policy version id.
+const PROVENANCE_KEY_POLICY_VERSION: &str = "policy_version";
+/// Snapshot/variant provenance key for an evaluator implementation hash.
+const PROVENANCE_KEY_EVALUATOR_HASH: &str = "evaluator_hash";
+/// Snapshot/variant provenance key for an evaluator version id.
+const PROVENANCE_KEY_EVALUATOR_VERSION: &str = "evaluator_version";
+/// Metadata object that may hold provenance fields.
+const METADATA_PROVENANCE_FIELD: &str = "provenance";
+/// Provenance fields that prove policy comparability when uniform.
+const POLICY_PROVENANCE_KEYS: &[&str] =
+    &[PROVENANCE_KEY_POLICY_HASH, PROVENANCE_KEY_POLICY_VERSION];
+/// Provenance fields that prove evaluator comparability when uniform.
+const EVALUATOR_PROVENANCE_KEYS: &[&str] = &[
+    PROVENANCE_KEY_EVALUATOR_HASH,
+    PROVENANCE_KEY_EVALUATOR_VERSION,
 ];
 
 /// A tenant-agnostic roll-up of one snapshot's evaluations.
@@ -267,6 +286,8 @@ pub struct ComparisonMatrix {
 #[serde(rename_all = "snake_case")]
 pub enum CompareWarning {
     MissingSourceHashes,
+    MissingPolicyProvenance,
+    MissingEvaluatorProvenance,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -288,6 +309,12 @@ pub enum CompareError {
         snapshot_id: String,
     },
     MixedSourceHashes {
+        snapshot_id: String,
+    },
+    MixedProvenance {
+        key: String,
+        expected: String,
+        found: String,
         snapshot_id: String,
     },
     DuplicateStateVarId {
@@ -331,6 +358,15 @@ impl fmt::Display for CompareError {
             Self::MixedSourceHashes { snapshot_id } => write!(
                 f,
                 "snapshot {snapshot_id} has source hashes that do not match the comparison set"
+            ),
+            Self::MixedProvenance {
+                key,
+                expected,
+                found,
+                snapshot_id,
+            } => write!(
+                f,
+                "snapshot {snapshot_id} has provenance {key}={found}, expected {expected}"
             ),
             Self::DuplicateStateVarId {
                 snapshot_id,
@@ -380,6 +416,79 @@ fn normalized_source_hashes(snapshot: &WorkbenchSnapshotV1) -> Option<Vec<String
         normalized.sort();
         normalized
     })
+}
+
+fn metadata_provenance_value<'a>(metadata: Option<&'a Value>, key: &str) -> Option<&'a str> {
+    metadata
+        .and_then(|value| value.get(key).and_then(Value::as_str))
+        .or_else(|| {
+            metadata.and_then(|value| {
+                value
+                    .get(METADATA_PROVENANCE_FIELD)
+                    .and_then(|provenance| provenance.get(key))
+                    .and_then(Value::as_str)
+            })
+        })
+}
+
+fn provenance_value(snapshot: &WorkbenchSnapshotV1, key: &str) -> Option<String> {
+    snapshot
+        .variant
+        .as_ref()
+        .and_then(|variant| variant.axes.get(key).cloned())
+        .or_else(|| metadata_provenance_value(snapshot.metadata.as_ref(), key).map(str::to_string))
+}
+
+fn validate_provenance_key(
+    snapshots: &[WorkbenchSnapshotV1],
+    key: &str,
+) -> Result<bool, CompareError> {
+    let values: Vec<_> = snapshots
+        .iter()
+        .map(|snapshot| (snapshot, provenance_value(snapshot, key)))
+        .collect();
+    if values.iter().all(|(_, value)| value.is_none()) {
+        return Ok(false);
+    }
+
+    let expected = values.iter().find_map(|(_, value)| value.as_ref()).cloned();
+    let Some(expected) = expected else {
+        return Ok(false);
+    };
+
+    for (snapshot, value) in values {
+        match value {
+            Some(value) if value == expected => {}
+            Some(value) => {
+                return Err(CompareError::MixedProvenance {
+                    key: key.to_string(),
+                    expected,
+                    found: value,
+                    snapshot_id: snapshot.snapshot_id.clone(),
+                });
+            }
+            None => {
+                return Err(CompareError::MixedProvenance {
+                    key: key.to_string(),
+                    expected,
+                    found: "<missing>".to_string(),
+                    snapshot_id: snapshot.snapshot_id.clone(),
+                });
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn validate_provenance_group(
+    snapshots: &[WorkbenchSnapshotV1],
+    keys: &[&str],
+) -> Result<bool, CompareError> {
+    let mut has_group_provenance = false;
+    for key in keys {
+        has_group_provenance |= validate_provenance_key(snapshots, key)?;
+    }
+    Ok(has_group_provenance)
 }
 
 fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareContext, CompareError> {
@@ -456,11 +565,16 @@ fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareConte
         }
     }
 
-    let warnings = if missing_source_hashes {
-        vec![CompareWarning::MissingSourceHashes]
-    } else {
-        Vec::new()
-    };
+    let mut warnings = Vec::new();
+    if missing_source_hashes {
+        warnings.push(CompareWarning::MissingSourceHashes);
+    }
+    if !validate_provenance_group(snapshots, POLICY_PROVENANCE_KEYS)? {
+        warnings.push(CompareWarning::MissingPolicyProvenance);
+    }
+    if !validate_provenance_group(snapshots, EVALUATOR_PROVENANCE_KEYS)? {
+        warnings.push(CompareWarning::MissingEvaluatorProvenance);
+    }
 
     Ok(CompareContext {
         experiment_id: expected_experiment_id,
@@ -798,6 +912,26 @@ mod tests {
         );
     }
 
+    fn missing_provenance_warnings() -> Vec<CompareWarning> {
+        vec![
+            CompareWarning::MissingSourceHashes,
+            CompareWarning::MissingPolicyProvenance,
+            CompareWarning::MissingEvaluatorProvenance,
+        ]
+    }
+
+    fn stamp_variant_axes_provenance(snapshot: &mut WorkbenchSnapshotV1) {
+        let variant = snapshot.variant.as_mut().expect("fixture has variant");
+        variant.axes.insert(
+            PROVENANCE_KEY_POLICY_HASH.to_string(),
+            "sha256:policy".to_string(),
+        );
+        variant.axes.insert(
+            PROVENANCE_KEY_EVALUATOR_VERSION.to_string(),
+            "career-evaluator/2026.07.03".to_string(),
+        );
+    }
+
     #[test]
     fn summarize_only_blocks_failing_or_blocked_exact_gate_effects() {
         let mut snap: WorkbenchSnapshotV1 =
@@ -897,7 +1031,7 @@ mod tests {
         assert_eq!(matrix.experiment_id, "career.lens.acme-l4-eval");
         assert_eq!(matrix.variants, vec!["opus+semantic", "haiku+mechanical"]);
         assert_eq!(matrix.variant_replicates, vec![1, 1]);
-        assert_eq!(matrix.warnings, vec![CompareWarning::MissingSourceHashes]);
+        assert_eq!(matrix.warnings, missing_provenance_warnings());
 
         // The grounding row diverges (pass vs fail), with a real spread;
         // that's the signal "semantic vs mechanical changed the outcome".
@@ -1068,6 +1202,100 @@ mod tests {
         let err = compare(&[opus, haiku]).expect_err("mismatched inputs rejected");
 
         assert!(matches!(err, CompareError::MixedSourceHashes { .. }));
+    }
+
+    #[test]
+    fn accepts_uniform_provenance_in_variant_axes() {
+        let mut opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        stamp_variant_axes_provenance(&mut opus);
+        stamp_variant_axes_provenance(&mut haiku);
+
+        let matrix = compare(&[opus, haiku]).expect("uniform provenance is comparable");
+
+        assert_eq!(matrix.warnings, vec![CompareWarning::MissingSourceHashes]);
+    }
+
+    #[test]
+    fn accepts_uniform_provenance_in_metadata() {
+        let mut opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        let metadata = serde_json::json!({
+            "provenance": {
+                "policy_version": "career-policy/2026.07.03",
+                "evaluator_hash": "sha256:evaluator"
+            }
+        });
+        opus.metadata = Some(metadata.clone());
+        haiku.metadata = Some(metadata);
+
+        let matrix = compare(&[opus, haiku]).expect("uniform metadata provenance is comparable");
+
+        assert_eq!(matrix.warnings, vec![CompareWarning::MissingSourceHashes]);
+    }
+
+    #[test]
+    fn rejects_mixed_policy_provenance() {
+        let mut opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        stamp_variant_axes_provenance(&mut opus);
+        stamp_variant_axes_provenance(&mut haiku);
+        haiku
+            .variant
+            .as_mut()
+            .expect("fixture has variant")
+            .axes
+            .insert(
+                PROVENANCE_KEY_POLICY_HASH.to_string(),
+                "sha256:other-policy".to_string(),
+            );
+
+        let err = compare(&[opus, haiku]).expect_err("mixed policy provenance rejected");
+
+        assert!(matches!(err, CompareError::MixedProvenance { .. }));
+    }
+
+    #[test]
+    fn rejects_partially_missing_evaluator_provenance() {
+        let opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        haiku
+            .variant
+            .as_mut()
+            .expect("fixture has variant")
+            .axes
+            .insert(
+                PROVENANCE_KEY_EVALUATOR_VERSION.to_string(),
+                "career-evaluator/2026.07.03".to_string(),
+            );
+
+        let err = compare(&[opus, haiku]).expect_err("partial evaluator provenance rejected");
+
+        assert!(matches!(err, CompareError::MixedProvenance { .. }));
     }
 
     #[test]
