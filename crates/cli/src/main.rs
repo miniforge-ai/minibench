@@ -228,6 +228,8 @@ fn compare_error_str(err: &CompareError) -> String {
 fn compare_warning_str(warning: &CompareWarning) -> &'static str {
     match warning {
         CompareWarning::MissingSourceHashes => strings::WARNING_MISSING_SOURCE_HASHES,
+        CompareWarning::MissingPolicyProvenance => strings::WARNING_MISSING_POLICY_PROVENANCE,
+        CompareWarning::MissingEvaluatorProvenance => strings::WARNING_MISSING_EVALUATOR_PROVENANCE,
     }
 }
 

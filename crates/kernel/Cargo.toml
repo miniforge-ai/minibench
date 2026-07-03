@@ -13,10 +13,8 @@ description = "Generic, tenant-agnostic kernel over workbench snapshots (run sum
 
 [dependencies]
 serde = { workspace = true }
-workbench-contract = { workspace = true }
-
-[dev-dependencies]
 serde_json = { workspace = true }
+workbench-contract = { workspace = true }
 
 [lints]
 workspace = true

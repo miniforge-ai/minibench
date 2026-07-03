@@ -31,6 +31,10 @@ pub const DIVERGENCE_MARK: &str = "◆";
 pub const ABSENT_CELL: &str = "—";
 pub const WARNING_MISSING_SOURCE_HASHES: &str =
     "source_hashes missing; input equality could not be verified";
+pub const WARNING_MISSING_POLICY_PROVENANCE: &str =
+    "policy provenance missing; scoring yardstick could not be verified";
+pub const WARNING_MISSING_EVALUATOR_PROVENANCE: &str =
+    "evaluator provenance missing; evaluator implementation could not be verified";
 
 // status display labels
 pub const STATUS_PASS: &str = "pass";
