@@ -16,7 +16,8 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use minibench_kernel::{
-    ComparisonCell, ComparisonMatrix, RegressionReport, compare, diff, summarize,
+    CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, RegressionReport, compare,
+    diff, summarize,
 };
 use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
 
@@ -96,7 +97,14 @@ fn run_compare(dir: &Path) -> ExitCode {
         Ok(snapshots) => snapshots,
         Err(code) => return code,
     };
-    print_matrix(&compare(&snapshots));
+    let matrix = match compare(&snapshots) {
+        Ok(matrix) => matrix,
+        Err(err) => {
+            eprintln!("{} {}", strings::ERROR_PREFIX, compare_error_str(&err));
+            return ExitCode::FAILURE;
+        }
+    };
+    print_matrix(&matrix);
     ExitCode::SUCCESS
 }
 
@@ -199,17 +207,46 @@ fn status_str(status: StateStatus) -> &'static str {
 
 fn cell_str(cell: &Option<ComparisonCell>) -> String {
     match cell {
+        Some(c) if c.replicate_count > 1 => format!(
+            "{} {:.2} [{:.2}-{:.2}] {}/{}",
+            status_str(c.status),
+            c.score,
+            c.score_min,
+            c.score_max,
+            c.present_count,
+            c.replicate_count
+        ),
         Some(c) => format!("{} {:.2}", status_str(c.status), c.score),
         None => strings::ABSENT_CELL.to_string(),
+    }
+}
+
+fn compare_error_str(err: &CompareError) -> String {
+    err.to_string()
+}
+
+fn compare_warning_str(warning: &CompareWarning) -> &'static str {
+    match warning {
+        CompareWarning::MissingSourceHashes => strings::WARNING_MISSING_SOURCE_HASHES,
     }
 }
 
 fn print_matrix(matrix: &ComparisonMatrix) {
     // Build the grid as strings, then pad each column to its widest cell.
     let mut header: Vec<String> = vec![strings::COL_STATE_VARIABLE.to_string()];
-    header.extend(matrix.variants.iter().cloned());
+    header.extend(matrix.variants.iter().enumerate().map(|(idx, variant)| {
+        let replicates = matrix.variant_replicates[idx];
+        if replicates > 1 {
+            format!("{variant} (n={replicates})")
+        } else {
+            variant.clone()
+        }
+    }));
     header.push(strings::COL_SPREAD.to_string());
+    header.push(strings::COL_WITHIN.to_string());
     header.push(strings::COL_DIVERGE.to_string());
+    header.push(strings::COL_COVERAGE.to_string());
+    header.push(strings::COL_UNSTABLE.to_string());
 
     let mut grid: Vec<Vec<String>> = Vec::with_capacity(matrix.rows.len() + 1);
     grid.push(header.clone());
@@ -217,8 +254,25 @@ fn print_matrix(matrix: &ComparisonMatrix) {
         let mut line = vec![row.state_var_id.clone()];
         line.extend(row.cells.iter().map(cell_str));
         line.push(format!("{:.2}", row.score_spread));
+        line.push(format!("{:.2}", row.within_score_spread));
         line.push(
             if row.status_divergence {
+                strings::DIVERGENCE_MARK
+            } else {
+                ""
+            }
+            .to_string(),
+        );
+        line.push(
+            if row.coverage_divergence {
+                strings::DIVERGENCE_MARK
+            } else {
+                ""
+            }
+            .to_string(),
+        );
+        line.push(
+            if row.status_unstable {
                 strings::DIVERGENCE_MARK
             } else {
                 ""
@@ -234,6 +288,13 @@ fn print_matrix(matrix: &ComparisonMatrix) {
         .collect();
 
     println!("{} {}", strings::EXPERIMENT_PREFIX, matrix.experiment_id);
+    for warning in &matrix.warnings {
+        println!(
+            "{} {}",
+            strings::WARNING_PREFIX,
+            compare_warning_str(warning)
+        );
+    }
     println!();
     for (i, line) in grid.iter().enumerate() {
         let rendered: Vec<String> = line
