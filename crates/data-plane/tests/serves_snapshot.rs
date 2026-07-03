@@ -10,8 +10,12 @@
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use minibench_data_plane::{WorkbenchProvider, router};
+use minibench_kernel::ComparisonMatrix;
 use tower::ServiceExt; // oneshot
 use workbench_contract::{WORKBENCH_SNAPSHOT_V1, WorkbenchSnapshotV1};
+
+const LATEST_SNAPSHOT_ROUTE: &str = "/v1/snapshots/latest";
+const CAREER_EXPERIMENT_MATRIX_ROUTE: &str = "/v1/experiments/career.lens.acme-l4-eval/matrix";
 
 #[tokio::test]
 async fn serves_latest_snapshot_as_valid_contract() {
@@ -24,7 +28,7 @@ async fn serves_latest_snapshot_as_valid_contract() {
     let response = app
         .oneshot(
             Request::builder()
-                .uri("/v1/snapshots/latest")
+                .uri(LATEST_SNAPSHOT_ROUTE)
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -46,4 +50,61 @@ async fn serves_latest_snapshot_as_valid_contract() {
         !summary.blocking.is_empty() || summary.fail >= 1,
         "the sample snapshot has a failing/blocking evaluation"
     );
+}
+
+#[tokio::test]
+async fn serves_experiment_matrix() {
+    let opus: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/opus-semantic.json"
+    ))
+    .expect("parse opus fixture");
+    let haiku: serde_json::Value = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/haiku-mechanical.json"
+    ))
+    .expect("parse haiku fixture");
+    let provider = WorkbenchProvider::new(vec![opus, haiku]);
+    let app = router(provider);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri(CAREER_EXPERIMENT_MATRIX_ROUTE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let bytes = axum::body::to_bytes(response.into_body(), usize::MAX)
+        .await
+        .unwrap();
+    let decoded: ComparisonMatrix = serde_json::from_slice(&bytes).expect("decode matrix");
+    assert_eq!(decoded.experiment_id, "career.lens.acme-l4-eval");
+    assert_eq!(decoded.variants, vec!["opus+semantic", "haiku+mechanical"]);
+}
+
+#[tokio::test]
+async fn invalid_experiment_matrix_returns_bad_request() {
+    let mut snap: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/opus-semantic.json"
+    ))
+    .expect("parse opus fixture");
+    snap.evaluations.push(snap.evaluations[0].clone());
+    let value = serde_json::to_value(snap).expect("encode invalid snapshot");
+    let provider = WorkbenchProvider::new(vec![value]);
+    let app = router(provider);
+
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri(CAREER_EXPERIMENT_MATRIX_ROUTE)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
 }

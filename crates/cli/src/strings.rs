@@ -10,6 +10,7 @@
 pub const USAGE: &str =
     "usage: minibench <compare <dir> | summarize <file.json> | diff <baseline-dir> <current-dir>>";
 pub const ERROR_PREFIX: &str = "error:";
+pub const WARNING_PREFIX: &str = "warning:";
 pub const NO_SNAPSHOTS_FOUND: &str = "no *.json snapshots found in";
 
 // diff / regression gate
@@ -22,9 +23,14 @@ pub const REGRESSION_EXIT_CODE: u8 = 3;
 pub const EXPERIMENT_PREFIX: &str = "experiment:";
 pub const COL_STATE_VARIABLE: &str = "state variable";
 pub const COL_SPREAD: &str = "spread";
+pub const COL_WITHIN: &str = "within";
 pub const COL_DIVERGE: &str = "diverge";
+pub const COL_COVERAGE: &str = "coverage";
+pub const COL_UNSTABLE: &str = "unstable";
 pub const DIVERGENCE_MARK: &str = "◆";
 pub const ABSENT_CELL: &str = "—";
+pub const WARNING_MISSING_SOURCE_HASHES: &str =
+    "source_hashes missing; input equality could not be verified";
 
 // status display labels
 pub const STATUS_PASS: &str = "pass";

@@ -20,7 +20,7 @@ use axum::extract::Path as RoutePath;
 use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
-use minibench_kernel::{ComparisonMatrix, compare};
+use minibench_kernel::{CompareError, ComparisonMatrix, compare};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use thesium_app_foundation_contracts::{
@@ -163,23 +163,25 @@ fn experiments(snapshots: &[WorkbenchSnapshotV1]) -> Vec<ExperimentSummary> {
 fn experiment_matrix(
     snapshots: &[WorkbenchSnapshotV1],
     experiment_id: &str,
-) -> Option<ComparisonMatrix> {
+) -> Result<Option<ComparisonMatrix>, CompareError> {
     let group: Vec<WorkbenchSnapshotV1> = snapshots
         .iter()
         .filter(|s| s.variant.as_ref().map(|v| v.experiment_id.as_str()) == Some(experiment_id))
         .cloned()
         .collect();
     if group.is_empty() {
-        None
+        Ok(None)
     } else {
-        Some(compare(&group))
+        compare(&group).map(Some)
     }
 }
 
 async fn handle_comparison(
     Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
-) -> Json<ComparisonMatrix> {
-    Json(compare(&snapshots))
+) -> Result<Json<ComparisonMatrix>, StatusCode> {
+    compare(&snapshots)
+        .map(Json)
+        .map_err(|_| StatusCode::BAD_REQUEST)
 }
 
 async fn handle_experiments(
@@ -192,9 +194,11 @@ async fn handle_experiment_matrix(
     Extension(snapshots): Extension<Arc<Vec<WorkbenchSnapshotV1>>>,
     RoutePath(experiment_id): RoutePath<String>,
 ) -> Result<Json<ComparisonMatrix>, StatusCode> {
-    experiment_matrix(&snapshots, &experiment_id)
-        .map(Json)
-        .ok_or(StatusCode::NOT_FOUND)
+    match experiment_matrix(&snapshots, &experiment_id) {
+        Ok(Some(matrix)) => Ok(Json(matrix)),
+        Ok(None) => Err(StatusCode::NOT_FOUND),
+        Err(_) => Err(StatusCode::BAD_REQUEST),
+    }
 }
 
 /// The foundation's five-route router around a [`WorkbenchProvider`], plus
