@@ -471,7 +471,7 @@ fn validate_provenance_key(
                 return Err(CompareError::MixedProvenance {
                     key: key.to_string(),
                     expected,
-                    found: "missing".to_string(),
+                    found: "<missing>".to_string(),
                     snapshot_id: snapshot.snapshot_id.clone(),
                 });
             }
