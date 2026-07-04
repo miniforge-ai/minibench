@@ -263,6 +263,12 @@ pub struct ComparisonRow {
     pub score_spread: f64,
     /// Largest within-variant min/max score spread for this row.
     pub within_score_spread: f64,
+    /// Lowest confidence observed across the row's present cells.
+    pub confidence_min: f64,
+    /// Highest confidence observed across the row's present cells.
+    pub confidence_max: f64,
+    /// max - min confidence across variants and replicates for this row.
+    pub confidence_spread: f64,
     /// Interpretation of score spread relative to measured replicate noise.
     pub spread_signal: SpreadSignal,
     /// True when stable majority statuses differ across variants.
@@ -775,6 +781,19 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
                 .map(|cell| cell.score_max - cell.score_min)
                 .reduce(f64::max)
                 .unwrap_or(0.0);
+            let confidence_min = cells
+                .iter()
+                .flatten()
+                .map(|cell| cell.confidence_min)
+                .reduce(f64::min)
+                .unwrap_or(0.0);
+            let confidence_max = cells
+                .iter()
+                .flatten()
+                .map(|cell| cell.confidence_max)
+                .reduce(f64::max)
+                .unwrap_or(0.0);
+            let confidence_spread = confidence_max - confidence_min;
             let row_present_counts: Vec<usize> = cells
                 .iter()
                 .map(|cell| cell.as_ref().map_or(0, |cell| cell.present_count))
@@ -801,6 +820,9 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
                 cells,
                 score_spread,
                 within_score_spread,
+                confidence_min,
+                confidence_max,
+                confidence_spread,
                 spread_signal,
                 status_divergence,
                 coverage_divergence,
@@ -1221,6 +1243,31 @@ mod tests {
             "coverage has its own signal"
         );
         assert!(traceability.cells[1].is_none());
+    }
+
+    #[test]
+    fn rows_report_confidence_range_across_variants() {
+        let mut opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        opus.evaluations[0].confidence = 0.51;
+        haiku.evaluations[0].confidence = 0.99;
+
+        let matrix = compare(&[opus, haiku]).expect("valid comparison");
+
+        let grounded = matrix
+            .rows
+            .iter()
+            .find(|r| r.state_var_id == "career.lens.report_grounded")
+            .expect("grounding row present");
+        assert!((grounded.confidence_min - 0.51).abs() < 1e-9);
+        assert!((grounded.confidence_max - 0.99).abs() < 1e-9);
+        assert!((grounded.confidence_spread - 0.48).abs() < 1e-9);
     }
 
     #[test]

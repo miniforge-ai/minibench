@@ -47,6 +47,7 @@ struct MatrixView: View {
                 }
                 Text(Strings.colSpread)
                 Text(Strings.colWithin)
+                Text(Strings.colConfidence)
                 Text(Strings.colSignals)
             }
             .font(.caption.weight(.semibold))
@@ -54,7 +55,7 @@ struct MatrixView: View {
 
             // Span the full grid width: id column + variants + metric columns.
             GridRow {
-                Divider().gridCellColumns(matrix.variants.count + 4)
+                Divider().gridCellColumns(matrix.variants.count + 5)
             }
 
             ForEach(matrix.rows) { row in
@@ -66,6 +67,9 @@ struct MatrixView: View {
                     }
                     spread(row)
                     Text(row.withinScoreSpread, format: .number.precision(.fractionLength(2)))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    Text(confidenceRange(row))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
                     signals(row)
@@ -151,6 +155,13 @@ struct MatrixView: View {
 
     private func confidenceLabel(_ confidence: Double) -> String {
         "\(Strings.confidencePrefix) \(confidence.formatted(.number.precision(.fractionLength(2))))"
+    }
+
+    private func confidenceRange(_ row: ComparisonRow) -> String {
+        let min = row.confidenceMin.formatted(.number.precision(.fractionLength(2)))
+        guard row.confidenceSpread != 0 else { return min }
+        let max = row.confidenceMax.formatted(.number.precision(.fractionLength(2)))
+        return "\(min)-\(max)"
     }
 
     private func replicateLabel(_ cell: ComparisonCell) -> String {

@@ -31,6 +31,7 @@ enum Strings {
     static let colStateVar = "State variable"
     static let colSpread = "Spread"
     static let colWithin = "Within"
+    static let colConfidence = "Confidence"
     static let colSignals = "Signals"
     static let absentCell = "—"
     static let divergeMark = "◆"

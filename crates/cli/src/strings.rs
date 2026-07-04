@@ -24,6 +24,7 @@ pub const EXPERIMENT_PREFIX: &str = "experiment:";
 pub const COL_STATE_VARIABLE: &str = "state variable";
 pub const COL_SPREAD: &str = "spread";
 pub const COL_WITHIN: &str = "within";
+pub const COL_CONFIDENCE: &str = "confidence";
 pub const COL_SPREAD_SIGNAL: &str = "spread signal";
 pub const COL_DIVERGE: &str = "diverge";
 pub const COL_COVERAGE: &str = "coverage";
