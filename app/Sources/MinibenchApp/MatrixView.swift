@@ -114,6 +114,16 @@ struct MatrixView: View {
 
     private func signals(_ row: ComparisonRow) -> some View {
         HStack(spacing: Tokens.Spacing.tight) {
+            switch row.spreadSignal {
+            case .noSpread:
+                EmptyView()
+            case .singleRun:
+                signal(Strings.signalSingleRun, color: Color(.secondaryLabelColor))
+            case .betweenExceedsWithin:
+                signal(Strings.signalBetween, color: Color(.systemBlue))
+            case .withinMatchesBetween:
+                signal(Strings.signalWithinNoise, color: Color(.systemPurple))
+            }
             if row.statusDivergence {
                 signal(Strings.signalStatus, color: Color(.systemOrange))
             }
