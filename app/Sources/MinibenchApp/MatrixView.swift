@@ -115,13 +115,13 @@ struct MatrixView: View {
     private func signals(_ row: ComparisonRow) -> some View {
         HStack(spacing: Tokens.Spacing.tight) {
             if row.statusDivergence {
-                signal(Strings.signalStatus, color: .orange)
+                signal(Strings.signalStatus, color: Color(.systemOrange))
             }
             if row.coverageDivergence {
-                signal(Strings.signalCoverage, color: .red)
+                signal(Strings.signalCoverage, color: Color(.systemRed))
             }
             if row.statusUnstable {
-                signal(Strings.signalUnstable, color: .yellow)
+                signal(Strings.signalUnstable, color: Color(.systemYellow))
             }
         }
     }
