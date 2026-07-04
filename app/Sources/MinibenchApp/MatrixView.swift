@@ -12,10 +12,26 @@ struct MatrixView: View {
         VStack(alignment: .leading, spacing: Tokens.Spacing.normal) {
             Text(matrix.experimentId)
                 .font(.title3.weight(.semibold))
-            grid
+            warnings
+            ScrollView([.horizontal, .vertical]) {
+                grid
+            }
         }
         .padding(Tokens.Padding.pane)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private var warnings: some View {
+        if !matrix.warnings.isEmpty {
+            VStack(alignment: .leading, spacing: Tokens.Spacing.tight) {
+                ForEach(matrix.warnings, id: \.self) { warning in
+                    Text(warningLabel(warning))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
     }
 
     private var grid: some View {
@@ -26,15 +42,19 @@ struct MatrixView: View {
         ) {
             GridRow {
                 Text(Strings.colStateVar)
-                ForEach(matrix.variants, id: \.self) { Text($0) }
+                ForEach(Array(matrix.variants.enumerated()), id: \.offset) { item in
+                    Text(variantLabel(item.offset, item.element))
+                }
                 Text(Strings.colSpread)
+                Text(Strings.colWithin)
+                Text(Strings.colSignals)
             }
             .font(.caption.weight(.semibold))
             .foregroundStyle(.secondary)
 
-            // Span the full grid width: id column + one per variant + spread.
+            // Span the full grid width: id column + variants + metric columns.
             GridRow {
-                Divider().gridCellColumns(matrix.variants.count + 2)
+                Divider().gridCellColumns(matrix.variants.count + 4)
             }
 
             ForEach(matrix.rows) { row in
@@ -45,6 +65,10 @@ struct MatrixView: View {
                         cell(item.element)
                     }
                     spread(row)
+                    Text(row.withinScoreSpread, format: .number.precision(.fractionLength(2)))
+                        .monospacedDigit()
+                        .foregroundStyle(.secondary)
+                    signals(row)
                 }
             }
         }
@@ -53,13 +77,23 @@ struct MatrixView: View {
     @ViewBuilder
     private func cell(_ cell: ComparisonCell?) -> some View {
         if let cell {
-            HStack(spacing: Tokens.Spacing.tight) {
-                Text(cell.status.label)
-                    .foregroundStyle(cell.status.tint)
-                    .fontWeight(.medium)
-                Text(cell.score, format: .number.precision(.fractionLength(2)))
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
+            VStack(alignment: .leading, spacing: Tokens.Spacing.tight) {
+                HStack(spacing: Tokens.Spacing.tight) {
+                    Text(cell.status.label)
+                        .foregroundStyle(cell.status.tint)
+                        .fontWeight(.medium)
+                    Text(cell.score, format: .number.precision(.fractionLength(2)))
+                        .monospacedDigit()
+                    Text(confidenceLabel(cell.confidence))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                if cell.replicateCount > 1 {
+                    Text(replicateLabel(cell))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             }
         } else {
             Text(Strings.absentCell)
@@ -75,6 +109,56 @@ struct MatrixView: View {
                 Text(Strings.divergeMark)
                     .foregroundStyle(.orange)
             }
+        }
+    }
+
+    private func signals(_ row: ComparisonRow) -> some View {
+        HStack(spacing: Tokens.Spacing.tight) {
+            if row.statusDivergence {
+                signal(Strings.signalStatus, color: Color(.systemOrange))
+            }
+            if row.coverageDivergence {
+                signal(Strings.signalCoverage, color: Color(.systemRed))
+            }
+            if row.statusUnstable {
+                signal(Strings.signalUnstable, color: Color(.systemYellow))
+            }
+        }
+    }
+
+    private func signal(_ label: String, color: Color) -> some View {
+        Text(label)
+            .font(.caption)
+            .foregroundStyle(color)
+    }
+
+    private func variantLabel(_ index: Int, _ variant: String) -> String {
+        guard matrix.variantReplicates.indices.contains(index) else { return variant }
+        let replicates = matrix.variantReplicates[index]
+        guard replicates > 1 else { return variant }
+        return "\(variant) (n=\(replicates))"
+    }
+
+    private func confidenceLabel(_ confidence: Double) -> String {
+        "\(Strings.confidencePrefix) \(confidence.formatted(.number.precision(.fractionLength(2))))"
+    }
+
+    private func replicateLabel(_ cell: ComparisonCell) -> String {
+        let min = cell.scoreMin.formatted(.number.precision(.fractionLength(2)))
+        let max = cell.scoreMax.formatted(.number.precision(.fractionLength(2)))
+        return "\(min)-\(max) \(cell.presentCount)/\(cell.replicateCount)"
+    }
+
+    private func warningLabel(_ warning: String) -> String {
+        switch warning {
+        case "missing_source_hashes":
+            Strings.missingSourceHashes
+        case "missing_policy_provenance":
+            Strings.missingPolicyProvenance
+        case "missing_evaluator_provenance":
+            Strings.missingEvaluatorProvenance
+        default:
+            "\(Strings.unknownWarning): \(warning)"
         }
     }
 }

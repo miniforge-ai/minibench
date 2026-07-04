@@ -30,8 +30,18 @@ enum Strings {
     // Matrix columns / marks
     static let colStateVar = "State variable"
     static let colSpread = "Spread"
+    static let colWithin = "Within"
+    static let colSignals = "Signals"
     static let absentCell = "—"
     static let divergeMark = "◆"
+    static let confidencePrefix = "c"
+    static let missingSourceHashes = "source hashes missing"
+    static let missingPolicyProvenance = "policy provenance missing"
+    static let missingEvaluatorProvenance = "evaluator provenance missing"
+    static let unknownWarning = "unknown warning"
+    static let signalStatus = "status"
+    static let signalCoverage = "coverage"
+    static let signalUnstable = "unstable"
 
     // Status labels (the contract's StateStatus)
     static let statusPass = "pass"

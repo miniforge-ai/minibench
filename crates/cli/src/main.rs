@@ -208,15 +208,23 @@ fn status_str(status: StateStatus) -> &'static str {
 fn cell_str(cell: &Option<ComparisonCell>) -> String {
     match cell {
         Some(c) if c.replicate_count > 1 => format!(
-            "{} {:.2} [{:.2}-{:.2}] {}/{}",
+            "{} {:.2} {}{:.2} [{:.2}-{:.2}] {}/{}",
             status_str(c.status),
             c.score,
+            strings::CONFIDENCE_PREFIX,
+            c.confidence,
             c.score_min,
             c.score_max,
             c.present_count,
             c.replicate_count
         ),
-        Some(c) => format!("{} {:.2}", status_str(c.status), c.score),
+        Some(c) => format!(
+            "{} {:.2} {}{:.2}",
+            status_str(c.status),
+            c.score,
+            strings::CONFIDENCE_PREFIX,
+            c.confidence
+        ),
         None => strings::ABSENT_CELL.to_string(),
     }
 }

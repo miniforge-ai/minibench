@@ -9,7 +9,9 @@ import Foundation
 struct ComparisonMatrix: Decodable {
     let experimentId: String
     let variants: [String]
+    let variantReplicates: [Int]
     let rows: [ComparisonRow]
+    let warnings: [String]
 }
 
 /// Sidebar unit — one experiment present in the loaded snapshots, decoded
@@ -28,7 +30,10 @@ struct ComparisonRow: Decodable, Identifiable {
     let stateVarId: String
     let cells: [ComparisonCell?]
     let scoreSpread: Double
+    let withinScoreSpread: Double
     let statusDivergence: Bool
+    let coverageDivergence: Bool
+    let statusUnstable: Bool
 
     var id: String { stateVarId }
 }
@@ -37,7 +42,15 @@ struct ComparisonRow: Decodable, Identifiable {
 struct ComparisonCell: Decodable {
     let status: StateStatus
     let score: Double
-    let confidence: Double?
+    let scoreMin: Double
+    let scoreMax: Double
+    let scoreSd: Double
+    let confidence: Double
+    let confidenceMin: Double
+    let confidenceMax: Double
+    let presentCount: Int
+    let replicateCount: Int
+    let statusUnstable: Bool
 }
 
 /// The contract's `StateStatus`. Raw values are the wire strings
