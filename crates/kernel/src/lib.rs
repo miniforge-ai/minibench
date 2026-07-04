@@ -53,6 +53,8 @@ const UNGROUPED_EXPERIMENT_ID: &str = "ungrouped";
 /// Standard deviation is only meaningful once at least two replicate
 /// observations exist.
 const MIN_REPLICATES_FOR_SPREAD: usize = 2;
+/// Float tolerance for classifying score-spread signals.
+const SCORE_SPREAD_EPSILON: f64 = 1e-9;
 /// Stable ordering used only to make tied status votes deterministic.
 const STATE_STATUS_ORDER: &[StateStatus] = &[
     StateStatus::Pass,
@@ -261,12 +263,23 @@ pub struct ComparisonRow {
     pub score_spread: f64,
     /// Largest within-variant min/max score spread for this row.
     pub within_score_spread: f64,
+    /// Interpretation of score spread relative to measured replicate noise.
+    pub spread_signal: SpreadSignal,
     /// True when stable majority statuses differ across variants.
     pub status_divergence: bool,
     /// True when any variant or replicate did not produce this row.
     pub coverage_divergence: bool,
     /// True when at least one variant has no unique majority status.
     pub status_unstable: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SpreadSignal {
+    NoSpread,
+    SingleRun,
+    BetweenExceedsWithin,
+    WithinMatchesBetween,
 }
 
 /// A run matrix for one experiment: state variables × variants.
@@ -595,6 +608,27 @@ fn spread(values: &[f64]) -> f64 {
     max - min
 }
 
+fn spread_signal(
+    score_spread: f64,
+    within_score_spread: f64,
+    row_present_counts: &[usize],
+) -> SpreadSignal {
+    if score_spread <= SCORE_SPREAD_EPSILON && within_score_spread <= SCORE_SPREAD_EPSILON {
+        return SpreadSignal::NoSpread;
+    }
+    if row_present_counts
+        .iter()
+        .all(|present_count| *present_count < MIN_REPLICATES_FOR_SPREAD)
+    {
+        return SpreadSignal::SingleRun;
+    }
+    if within_score_spread + SCORE_SPREAD_EPSILON >= score_spread {
+        SpreadSignal::WithinMatchesBetween
+    } else {
+        SpreadSignal::BetweenExceedsWithin
+    }
+}
+
 fn standard_deviation(values: &[f64]) -> f64 {
     if values.len() < MIN_REPLICATES_FOR_SPREAD {
         return 0.0;
@@ -708,6 +742,11 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
         }
     }
 
+    let variant_replicates: Vec<usize> = variants
+        .iter()
+        .map(|variant| groups[variant].len())
+        .collect();
+
     let rows = order
         .into_iter()
         .map(|state_var_id| {
@@ -736,6 +775,12 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
                 .map(|cell| cell.score_max - cell.score_min)
                 .reduce(f64::max)
                 .unwrap_or(0.0);
+            let row_present_counts: Vec<usize> = cells
+                .iter()
+                .map(|cell| cell.as_ref().map_or(0, |cell| cell.present_count))
+                .collect();
+            let spread_signal =
+                spread_signal(score_spread, within_score_spread, &row_present_counts);
             let stable_statuses: Vec<StateStatus> = cells
                 .iter()
                 .flatten()
@@ -756,16 +801,12 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
                 cells,
                 score_spread,
                 within_score_spread,
+                spread_signal,
                 status_divergence,
                 coverage_divergence,
                 status_unstable,
             }
         })
-        .collect();
-
-    let variant_replicates = variants
-        .iter()
-        .map(|variant| groups[variant].len())
         .collect();
 
     Ok(ComparisonMatrix {
@@ -1047,6 +1088,7 @@ mod tests {
         );
         assert_eq!(grounded.cells.len(), 2);
         assert!(grounded.cells.iter().all(Option::is_some));
+        assert_eq!(grounded.spread_signal, SpreadSignal::SingleRun);
         assert!(!grounded.coverage_divergence);
         assert!(!grounded.status_unstable);
     }
@@ -1088,6 +1130,65 @@ mod tests {
         assert!((opus_cell.score_max - 0.92).abs() < 1e-9);
         assert!((grounded.within_score_spread - 0.04).abs() < 1e-9);
         assert!((grounded.score_spread - 0.47).abs() < 1e-9);
+        assert_eq!(grounded.spread_signal, SpreadSignal::BetweenExceedsWithin);
+    }
+
+    #[test]
+    fn flags_spread_confounded_by_within_variant_noise() {
+        let opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        let mut opus_noisy_replicate = opus.clone();
+        opus_noisy_replicate.snapshot_id = "wb-career-opus-semantic-0002".to_string();
+        opus_noisy_replicate.run_id = "run-opus-0002".to_string();
+        opus_noisy_replicate.evaluations[0].score = 0.10;
+
+        let matrix = compare(&[opus, opus_noisy_replicate, haiku]).expect("valid comparison");
+
+        let grounded = matrix
+            .rows
+            .iter()
+            .find(|r| r.state_var_id == "career.lens.report_grounded")
+            .expect("grounding row present");
+        assert_eq!(grounded.spread_signal, SpreadSignal::WithinMatchesBetween);
+        assert!(
+            grounded.within_score_spread >= grounded.score_spread,
+            "within-variant spread should dominate the between-variant mean spread"
+        );
+    }
+
+    #[test]
+    fn row_spread_uses_present_replicates_not_variant_replicates() {
+        let opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        let mut opus_missing_replicate = opus.clone();
+        opus_missing_replicate.snapshot_id = "wb-career-opus-semantic-0002".to_string();
+        opus_missing_replicate.run_id = "run-opus-0002".to_string();
+        opus_missing_replicate.evaluations.clear();
+
+        let matrix = compare(&[opus, opus_missing_replicate, haiku]).expect("valid comparison");
+
+        let grounded = matrix
+            .rows
+            .iter()
+            .find(|r| r.state_var_id == "career.lens.report_grounded")
+            .expect("grounding row present");
+        assert!(
+            grounded.coverage_divergence,
+            "one variant replicate is missing the row"
+        );
+        assert_eq!(grounded.spread_signal, SpreadSignal::SingleRun);
     }
 
     #[test]

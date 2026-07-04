@@ -16,8 +16,8 @@ use std::path::Path;
 use std::process::ExitCode;
 
 use minibench_kernel::{
-    CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, RegressionReport, compare,
-    diff, summarize,
+    CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, RegressionReport, SpreadSignal,
+    compare, diff, summarize,
 };
 use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
 
@@ -241,6 +241,15 @@ fn compare_warning_str(warning: &CompareWarning) -> &'static str {
     }
 }
 
+fn spread_signal_str(signal: SpreadSignal) -> &'static str {
+    match signal {
+        SpreadSignal::NoSpread => strings::SPREAD_SIGNAL_NONE,
+        SpreadSignal::SingleRun => strings::SPREAD_SIGNAL_SINGLE_RUN,
+        SpreadSignal::BetweenExceedsWithin => strings::SPREAD_SIGNAL_BETWEEN,
+        SpreadSignal::WithinMatchesBetween => strings::SPREAD_SIGNAL_WITHIN,
+    }
+}
+
 fn print_matrix(matrix: &ComparisonMatrix) {
     // Build the grid as strings, then pad each column to its widest cell.
     let mut header: Vec<String> = vec![strings::COL_STATE_VARIABLE.to_string()];
@@ -254,6 +263,7 @@ fn print_matrix(matrix: &ComparisonMatrix) {
     }));
     header.push(strings::COL_SPREAD.to_string());
     header.push(strings::COL_WITHIN.to_string());
+    header.push(strings::COL_SPREAD_SIGNAL.to_string());
     header.push(strings::COL_DIVERGE.to_string());
     header.push(strings::COL_COVERAGE.to_string());
     header.push(strings::COL_UNSTABLE.to_string());
@@ -265,6 +275,7 @@ fn print_matrix(matrix: &ComparisonMatrix) {
         line.extend(row.cells.iter().map(cell_str));
         line.push(format!("{:.2}", row.score_spread));
         line.push(format!("{:.2}", row.within_score_spread));
+        line.push(spread_signal_str(row.spread_signal).to_string());
         line.push(
             if row.status_divergence {
                 strings::DIVERGENCE_MARK

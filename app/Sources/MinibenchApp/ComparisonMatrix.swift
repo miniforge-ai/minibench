@@ -31,11 +31,36 @@ struct ComparisonRow: Decodable, Identifiable {
     let cells: [ComparisonCell?]
     let scoreSpread: Double
     let withinScoreSpread: Double
+    let spreadSignal: SpreadSignal
     let statusDivergence: Bool
     let coverageDivergence: Bool
     let statusUnstable: Bool
 
     var id: String { stateVarId }
+
+    private enum CodingKeys: String, CodingKey {
+        case stateVarId
+        case cells
+        case scoreSpread
+        case withinScoreSpread
+        case spreadSignal
+        case statusDivergence
+        case coverageDivergence
+        case statusUnstable
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        stateVarId = try container.decode(String.self, forKey: .stateVarId)
+        cells = try container.decode([ComparisonCell?].self, forKey: .cells)
+        scoreSpread = try container.decode(Double.self, forKey: .scoreSpread)
+        withinScoreSpread = try container.decode(Double.self, forKey: .withinScoreSpread)
+        spreadSignal = try container.decodeIfPresent(SpreadSignal.self, forKey: .spreadSignal)
+            ?? .noSpread
+        statusDivergence = try container.decode(Bool.self, forKey: .statusDivergence)
+        coverageDivergence = try container.decode(Bool.self, forKey: .coverageDivergence)
+        statusUnstable = try container.decode(Bool.self, forKey: .statusUnstable)
+    }
 }
 
 /// One variant's evaluation of a state variable.
@@ -63,4 +88,11 @@ enum StateStatus: String, Decodable {
     case blocked
     case notApplicable = "not_applicable"
     case unknown
+}
+
+enum SpreadSignal: String, Decodable {
+    case noSpread = "no_spread"
+    case singleRun = "single_run"
+    case betweenExceedsWithin = "between_exceeds_within"
+    case withinMatchesBetween = "within_matches_between"
 }

@@ -42,6 +42,9 @@ enum Strings {
     static let signalStatus = "status"
     static let signalCoverage = "coverage"
     static let signalUnstable = "unstable"
+    static let signalSingleRun = "single run"
+    static let signalBetween = "between"
+    static let signalWithinNoise = "within noise"
 
     // Status labels (the contract's StateStatus)
     static let statusPass = "pass"
