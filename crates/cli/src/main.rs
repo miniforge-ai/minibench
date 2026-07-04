@@ -250,6 +250,14 @@ fn spread_signal_str(signal: SpreadSignal) -> &'static str {
     }
 }
 
+fn confidence_range_str(min: f64, max: f64, spread: f64) -> String {
+    if spread == 0.0 {
+        format!("{min:.2}")
+    } else {
+        format!("{min:.2}-{max:.2}")
+    }
+}
+
 fn print_matrix(matrix: &ComparisonMatrix) {
     // Build the grid as strings, then pad each column to its widest cell.
     let mut header: Vec<String> = vec![strings::COL_STATE_VARIABLE.to_string()];
@@ -263,6 +271,7 @@ fn print_matrix(matrix: &ComparisonMatrix) {
     }));
     header.push(strings::COL_SPREAD.to_string());
     header.push(strings::COL_WITHIN.to_string());
+    header.push(strings::COL_CONFIDENCE.to_string());
     header.push(strings::COL_SPREAD_SIGNAL.to_string());
     header.push(strings::COL_DIVERGE.to_string());
     header.push(strings::COL_COVERAGE.to_string());
@@ -275,6 +284,11 @@ fn print_matrix(matrix: &ComparisonMatrix) {
         line.extend(row.cells.iter().map(cell_str));
         line.push(format!("{:.2}", row.score_spread));
         line.push(format!("{:.2}", row.within_score_spread));
+        line.push(confidence_range_str(
+            row.confidence_min,
+            row.confidence_max,
+            row.confidence_spread,
+        ));
         line.push(spread_signal_str(row.spread_signal).to_string());
         line.push(
             if row.status_divergence {
