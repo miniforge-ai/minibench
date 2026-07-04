@@ -34,6 +34,7 @@ struct ComparisonRow: Decodable, Identifiable {
     let confidenceMin: Double
     let confidenceMax: Double
     let confidenceSpread: Double
+    let meaningfulScoreSpread: Bool
     let spreadSignal: SpreadSignal
     let statusDivergence: Bool
     let coverageDivergence: Bool
@@ -49,6 +50,7 @@ struct ComparisonRow: Decodable, Identifiable {
         case confidenceMin
         case confidenceMax
         case confidenceSpread
+        case meaningfulScoreSpread
         case spreadSignal
         case statusDivergence
         case coverageDivergence
@@ -64,6 +66,8 @@ struct ComparisonRow: Decodable, Identifiable {
         confidenceMin = try container.decodeIfPresent(Double.self, forKey: .confidenceMin) ?? 0
         confidenceMax = try container.decodeIfPresent(Double.self, forKey: .confidenceMax) ?? 0
         confidenceSpread = try container.decodeIfPresent(Double.self, forKey: .confidenceSpread) ?? 0
+        meaningfulScoreSpread = try container
+            .decodeIfPresent(Bool.self, forKey: .meaningfulScoreSpread) ?? false
         spreadSignal = try container.decodeIfPresent(SpreadSignal.self, forKey: .spreadSignal)
             ?? .noSpread
         statusDivergence = try container.decode(Bool.self, forKey: .statusDivergence)

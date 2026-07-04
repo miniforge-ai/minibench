@@ -17,15 +17,15 @@ use std::process::ExitCode;
 
 use minibench_kernel::{
     CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, RegressionReport, SpreadSignal,
-    compare, diff, summarize,
+    compare, compare_with_registry, diff, summarize,
 };
-use workbench_contract::{StateStatus, WorkbenchSnapshotV1};
+use workbench_contract::{StateStatus, StateVarRegistry, WorkbenchSnapshotV1};
 
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("compare") => match args.get(1) {
-            Some(dir) => run_compare(Path::new(dir)),
+            Some(dir) => run_compare(Path::new(dir), args.get(2).map(Path::new)),
             None => usage(),
         },
         Some("summarize") => match args.get(1) {
@@ -92,12 +92,23 @@ fn run_summarize(file: &Path) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-fn run_compare(dir: &Path) -> ExitCode {
+fn run_compare(dir: &Path, registry_path: Option<&Path>) -> ExitCode {
     let snapshots = match load_nonempty(dir) {
         Ok(snapshots) => snapshots,
         Err(code) => return code,
     };
-    let matrix = match compare(&snapshots) {
+    let registry = match registry_path.map(read_registry).transpose() {
+        Ok(registry) => registry,
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            return ExitCode::FAILURE;
+        }
+    };
+    let matrix = match registry.as_ref() {
+        Some(registry) => compare_with_registry(&snapshots, registry),
+        None => compare(&snapshots),
+    };
+    let matrix = match matrix {
         Ok(matrix) => matrix,
         Err(err) => {
             eprintln!("{} {}", strings::ERROR_PREFIX, compare_error_str(&err));
@@ -174,6 +185,11 @@ fn print_regressions(report: &RegressionReport) {
 }
 
 fn read_snapshot(file: &Path) -> Result<WorkbenchSnapshotV1, String> {
+    let bytes = std::fs::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
+    serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", file.display()))
+}
+
+fn read_registry(file: &Path) -> Result<StateVarRegistry, String> {
     let bytes = std::fs::read(file).map_err(|e| format!("{}: {e}", file.display()))?;
     serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", file.display()))
 }
@@ -273,6 +289,7 @@ fn print_matrix(matrix: &ComparisonMatrix) {
     header.push(strings::COL_WITHIN.to_string());
     header.push(strings::COL_CONFIDENCE.to_string());
     header.push(strings::COL_SPREAD_SIGNAL.to_string());
+    header.push(strings::COL_MEANINGFUL.to_string());
     header.push(strings::COL_DIVERGE.to_string());
     header.push(strings::COL_COVERAGE.to_string());
     header.push(strings::COL_UNSTABLE.to_string());
@@ -290,6 +307,14 @@ fn print_matrix(matrix: &ComparisonMatrix) {
             row.confidence_spread,
         ));
         line.push(spread_signal_str(row.spread_signal).to_string());
+        line.push(
+            if row.meaningful_score_spread {
+                strings::DIVERGENCE_MARK
+            } else {
+                ""
+            }
+            .to_string(),
+        );
         line.push(
             if row.status_divergence {
                 strings::DIVERGENCE_MARK
