@@ -269,6 +269,9 @@ pub struct ComparisonRow {
     pub confidence_max: f64,
     /// max - min confidence across variants and replicates for this row.
     pub confidence_spread: f64,
+    /// True when registry threshold bands say the score spread is large
+    /// enough to be worth reviewing even without status divergence.
+    pub meaningful_score_spread: bool,
     /// Interpretation of score spread relative to measured replicate noise.
     pub spread_signal: SpreadSignal,
     /// True when stable majority statuses differ across variants.
@@ -336,6 +339,14 @@ pub enum CompareError {
         found: String,
         snapshot_id: String,
     },
+    RegistryRefMismatch {
+        expected: String,
+        found: String,
+    },
+    RegistryProductMismatch {
+        expected: String,
+        found: String,
+    },
     DuplicateStateVarId {
         snapshot_id: String,
         state_var_id: String,
@@ -387,6 +398,16 @@ impl fmt::Display for CompareError {
                 f,
                 "snapshot {snapshot_id} has provenance {key}={found}, expected {expected}"
             ),
+            Self::RegistryRefMismatch { expected, found } => {
+                write!(
+                    f,
+                    "registry {found} does not match comparison registry {expected}"
+                )
+            }
+            Self::RegistryProductMismatch { expected, found } => write!(
+                f,
+                "registry product {found} does not match comparison product {expected}"
+            ),
             Self::DuplicateStateVarId {
                 snapshot_id,
                 state_var_id,
@@ -427,6 +448,10 @@ fn experiment_id(snapshot: &WorkbenchSnapshotV1) -> String {
 
 fn registry_ref_key(registry_ref: &RegistryRef) -> String {
     format!("{}@{}", registry_ref.registry_id, registry_ref.version)
+}
+
+fn registry_key(registry: &StateVarRegistry) -> String {
+    format!("{}@{}", registry.registry_id, registry.version)
 }
 
 fn normalized_source_hashes(snapshot: &WorkbenchSnapshotV1) -> Option<Vec<String>> {
@@ -635,6 +660,21 @@ fn spread_signal(
     }
 }
 
+fn meaningful_score_spread_threshold(state_var: &StateVariable) -> Option<f64> {
+    let mut thresholds: Vec<f64> = state_var
+        .thresholds
+        .values()
+        .copied()
+        .filter(|threshold| threshold.is_finite())
+        .collect();
+    thresholds.sort_by(f64::total_cmp);
+    thresholds
+        .windows(2)
+        .map(|window| window[1] - window[0])
+        .filter(|spread| *spread > SCORE_SPREAD_EPSILON)
+        .reduce(f64::min)
+}
+
 fn standard_deviation(values: &[f64]) -> f64 {
     if values.len() < MIN_REPLICATES_FOR_SPREAD {
         return 0.0;
@@ -717,13 +757,47 @@ fn aggregate_cell(
     })
 }
 
-/// Lay out the snapshots of one experiment as a comparison matrix.
-/// Variant columns keep first-seen order; snapshots with the same
-/// experiment + label and distinct run ids are grouped as replicates.
-/// State-variable rows keep first-seen order across snapshots so the
-/// matrix is stable.
-pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, CompareError> {
+fn validate_comparison_registry(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: &StateVarRegistry,
+) -> Result<(), CompareError> {
+    let Some(first) = snapshots.first() else {
+        return Err(CompareError::EmptyInput);
+    };
+    let expected_registry_ref = registry_ref_key(&first.registry_ref);
+    let found_registry_ref = registry_key(registry);
+    if found_registry_ref != expected_registry_ref {
+        return Err(CompareError::RegistryRefMismatch {
+            expected: expected_registry_ref,
+            found: found_registry_ref,
+        });
+    }
+    if registry.product != first.product {
+        return Err(CompareError::RegistryProductMismatch {
+            expected: first.product.clone(),
+            found: registry.product.clone(),
+        });
+    }
+    Ok(())
+}
+
+fn compare_inner(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: Option<&StateVarRegistry>,
+) -> Result<ComparisonMatrix, CompareError> {
     let ctx = validate_comparable(snapshots)?;
+    if let Some(registry) = registry {
+        validate_comparison_registry(snapshots, registry)?;
+    }
+    let state_vars: BTreeMap<&str, &StateVariable> = registry
+        .map(|registry| {
+            registry
+                .state_vars
+                .iter()
+                .map(|state_var| (state_var.id.as_str(), state_var))
+                .collect()
+        })
+        .unwrap_or_default();
 
     let mut variants: Vec<String> = Vec::new();
     let mut groups: BTreeMap<String, Vec<&WorkbenchSnapshotV1>> = BTreeMap::new();
@@ -794,6 +868,10 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
                 .reduce(f64::max)
                 .unwrap_or(0.0);
             let confidence_spread = confidence_max - confidence_min;
+            let meaningful_score_spread = state_vars
+                .get(state_var_id.as_str())
+                .and_then(|state_var| meaningful_score_spread_threshold(state_var))
+                .is_some_and(|threshold| score_spread + SCORE_SPREAD_EPSILON >= threshold);
             let row_present_counts: Vec<usize> = cells
                 .iter()
                 .map(|cell| cell.as_ref().map_or(0, |cell| cell.present_count))
@@ -823,6 +901,7 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
                 confidence_min,
                 confidence_max,
                 confidence_spread,
+                meaningful_score_spread,
                 spread_signal,
                 status_divergence,
                 coverage_divergence,
@@ -838,6 +917,24 @@ pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, Co
         rows,
         warnings: ctx.warnings,
     })
+}
+
+/// Lay out the snapshots of one experiment as a comparison matrix.
+/// Variant columns keep first-seen order; snapshots with the same
+/// experiment + label and distinct run ids are grouped as replicates.
+/// State-variable rows keep first-seen order across snapshots so the
+/// matrix is stable.
+pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, CompareError> {
+    compare_inner(snapshots, None)
+}
+
+/// Registry-aware comparison that can flag same-status score spread as
+/// meaningful when it crosses the state variable's threshold-band width.
+pub fn compare_with_registry(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: &StateVarRegistry,
+) -> Result<ComparisonMatrix, CompareError> {
+    compare_inner(snapshots, Some(registry))
 }
 
 /// Severity rank for the comparable statuses (lower is healthier); `None`
@@ -1077,6 +1174,19 @@ mod tests {
         }
     }
 
+    fn registry_with_thresholds(snapshot: &WorkbenchSnapshotV1) -> StateVarRegistry {
+        let mut registry = registry_for_snapshot(snapshot);
+        for state_var in &mut registry.state_vars {
+            state_var
+                .thresholds
+                .insert(STATUS_KEY_WARN.to_string(), 0.65);
+            state_var
+                .thresholds
+                .insert(STATUS_KEY_PASS.to_string(), 0.85);
+        }
+        registry
+    }
+
     #[test]
     fn compares_permutations_and_flags_divergence() {
         // Same task (career.lens.acme-l4-eval), two variants.
@@ -1268,6 +1378,77 @@ mod tests {
         assert!((grounded.confidence_min - 0.51).abs() < 1e-9);
         assert!((grounded.confidence_max - 0.99).abs() < 1e-9);
         assert!((grounded.confidence_spread - 0.48).abs() < 1e-9);
+    }
+
+    #[test]
+    fn compare_without_registry_does_not_mark_meaningful_score_spread() {
+        let mut opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        opus.evaluations[0].score = 0.95;
+        haiku.evaluations[0].score = 0.75;
+        haiku.evaluations[0].status = StateStatus::Pass;
+
+        let matrix = compare(&[opus, haiku]).expect("valid comparison");
+
+        let grounded = matrix
+            .rows
+            .iter()
+            .find(|r| r.state_var_id == "career.lens.report_grounded")
+            .expect("grounding row present");
+        assert!(!grounded.status_divergence);
+        assert!(!grounded.meaningful_score_spread);
+    }
+
+    #[test]
+    fn compare_with_registry_flags_same_status_meaningful_score_spread() {
+        let mut opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let mut haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        let registry = registry_with_thresholds(&opus);
+        opus.evaluations[0].score = 0.95;
+        haiku.evaluations[0].score = 0.75;
+        haiku.evaluations[0].status = StateStatus::Pass;
+
+        let matrix =
+            compare_with_registry(&[opus, haiku], &registry).expect("registry-aware comparison");
+
+        let grounded = matrix
+            .rows
+            .iter()
+            .find(|r| r.state_var_id == "career.lens.report_grounded")
+            .expect("grounding row present");
+        assert!(!grounded.status_divergence);
+        assert!(grounded.meaningful_score_spread);
+    }
+
+    #[test]
+    fn compare_with_registry_rejects_wrong_registry() {
+        let opus: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant");
+        let haiku: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/haiku-mechanical.json"
+        ))
+        .expect("decode haiku variant");
+        let mut registry = registry_with_thresholds(&opus);
+        registry.version = "2026.06.06.2".to_string();
+
+        let err =
+            compare_with_registry(&[opus, haiku], &registry).expect_err("wrong registry rejected");
+
+        assert!(matches!(err, CompareError::RegistryRefMismatch { .. }));
     }
 
     #[test]

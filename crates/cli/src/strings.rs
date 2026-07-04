@@ -7,8 +7,10 @@
 //! `miniforge-standards languages/rust` (230) § String constants. Domain
 //! logic references `crate::strings::*` rather than inlining literals.
 
-pub const USAGE: &str =
-    "usage: minibench <compare <dir> | summarize <file.json> | diff <baseline-dir> <current-dir>>";
+pub const USAGE: &str = concat!(
+    "usage: minibench <compare <dir> [registry.json] | ",
+    "summarize <file.json> | diff <baseline-dir> <current-dir>>"
+);
 pub const ERROR_PREFIX: &str = "error:";
 pub const WARNING_PREFIX: &str = "warning:";
 pub const NO_SNAPSHOTS_FOUND: &str = "no *.json snapshots found in";
@@ -26,6 +28,7 @@ pub const COL_SPREAD: &str = "spread";
 pub const COL_WITHIN: &str = "within";
 pub const COL_CONFIDENCE: &str = "confidence";
 pub const COL_SPREAD_SIGNAL: &str = "spread signal";
+pub const COL_MEANINGFUL: &str = "meaningful";
 pub const COL_DIVERGE: &str = "diverge";
 pub const COL_COVERAGE: &str = "coverage";
 pub const COL_UNSTABLE: &str = "unstable";

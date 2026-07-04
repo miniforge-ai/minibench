@@ -131,6 +131,9 @@ struct MatrixView: View {
             if row.statusDivergence {
                 signal(Strings.signalStatus, color: Color(.systemOrange))
             }
+            if row.meaningfulScoreSpread {
+                signal(Strings.signalMeaningful, color: Color(.systemBlue))
+            }
             if row.coverageDivergence {
                 signal(Strings.signalCoverage, color: Color(.systemRed))
             }

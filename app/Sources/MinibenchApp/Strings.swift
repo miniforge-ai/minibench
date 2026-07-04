@@ -43,6 +43,7 @@ enum Strings {
     static let signalStatus = "status"
     static let signalCoverage = "coverage"
     static let signalUnstable = "unstable"
+    static let signalMeaningful = "meaningful"
     static let signalSingleRun = "single run"
     static let signalBetween = "between"
     static let signalWithinNoise = "within noise"

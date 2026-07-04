@@ -76,6 +76,16 @@ runs this on every PR and **fails on any regression**; to accept a new
 result, update the baseline. That closes the loop the workbench exists to
 close — it doesn't just measure, it gates.
 
+## Registry-aware compare
+
+`minibench compare` can take the registry that scored the snapshots. With it,
+same-status score spread is flagged when it crosses that state variable's
+threshold-band width:
+
+```bash
+cargo run --bin minibench -- compare path/to/one-experiment path/to/registry.json
+```
+
 ## Deferred to later slices
 
 - **Swift UI shell tiers** — slice 1 (the comparison-matrix window) lives in
