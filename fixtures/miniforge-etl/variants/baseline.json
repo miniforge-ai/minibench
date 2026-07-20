@@ -1,0 +1,129 @@
+{
+  "schema_version" : "workbench_snapshot/v1",
+  "variant" : {
+    "experiment_id" : "miniforge.etl.adapter-e2e",
+    "label" : "baseline",
+    "workflow" : {
+      "id" : "Workbench Adapter Fixture",
+      "version" : "1.0.0"
+    },
+    "method" : "etl",
+    "axes" : {
+      "resolved_config_hash" : "sha256:adf1f7f0ecd516e3671956e7f4b742e8a8950bbd1372f4e9aa2681170552a884",
+      "factor_count" : "15"
+    }
+  },
+  "run_id" : "f615903b-6722-49c0-a036-c99e7b65fed1",
+  "generated_at" : "2026-07-19T01:17:46.622269Z",
+  "signature" : {
+    "algorithm" : "sha256",
+    "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
+    "canonicalization" : "json-c14n/1"
+  },
+  "snapshot_id" : "wb-f615903b-6722-49c0-a036-c99e7b65fed1",
+  "entities" : {
+    "miniforge.etl_run" : {
+      "pipeline_name" : "Workbench Adapter Fixture",
+      "pipeline_version" : "1.0.0",
+      "pipeline_mode" : "full-refresh",
+      "configured_stage_count" : 1,
+      "executed_stage_count" : 1,
+      "configuration_hash" : "sha256:adf1f7f0ecd516e3671956e7f4b742e8a8950bbd1372f4e9aa2681170552a884",
+      "factor_count" : 15,
+      "redacted_count" : 1
+    }
+  },
+  "product" : "miniforge",
+  "source_hashes" : [ "sha256:699854162d6eeeb906bc07e94a5adf6e86fbb9bd2fdeb10cf39f2dc1171fd43f" ],
+  "evaluations" : [ {
+    "findings" : [ ],
+    "state_var_id" : "miniforge.etl.run_completed",
+    "evidence_refs" : [ {
+      "id" : "miniforge.etl.pipeline-run.f615903b-6722-49c0-a036-c99e7b65fed1",
+      "source_role" : "pipeline-run",
+      "quote" : "pipeline status :completed",
+      "created_at" : "2026-07-19T01:17:46.622269Z"
+    } ],
+    "value" : true,
+    "gate_effect" : "none",
+    "score_components" : {
+      "completed" : 1.0
+    },
+    "product" : "miniforge",
+    "status" : "pass",
+    "score" : 1.0,
+    "evaluated_at" : "2026-07-19T01:17:46.622269Z",
+    "confidence" : 1.0
+  }, {
+    "findings" : [ ],
+    "state_var_id" : "miniforge.etl.stages_completed",
+    "evidence_refs" : [ {
+      "id" : "miniforge.etl.stage.0",
+      "source_role" : "pipeline-stage-run",
+      "quote" : "Ingest status :completed",
+      "created_at" : "2026-07-19T01:17:46.622269Z"
+    } ],
+    "value" : 1.0,
+    "gate_effect" : "none",
+    "score_components" : {
+      "completed_stages" : 1.0,
+      "total_stages" : 1.0,
+      "failed_stages" : 0.0
+    },
+    "product" : "miniforge",
+    "status" : "pass",
+    "score" : 1.0,
+    "evaluated_at" : "2026-07-19T01:17:46.622269Z",
+    "confidence" : 1.0
+  }, {
+    "findings" : [ ],
+    "state_var_id" : "miniforge.etl.data_quality_pass_rate",
+    "evidence_refs" : [ ],
+    "gate_effect" : "none",
+    "score_components" : {
+      "reports" : 0.0
+    },
+    "product" : "miniforge",
+    "status" : "not_applicable",
+    "score" : 1.0,
+    "evaluated_at" : "2026-07-19T01:17:46.622269Z",
+    "confidence" : 1.0
+  } ],
+  "registry_ref" : {
+    "registry_id" : "miniforge-etl-state-vars",
+    "version" : "2026.07.18.1"
+  },
+  "metadata" : {
+    "provenance" : {
+      "policy_hash" : "sha256:4a4edb4ddb064e249dd451c317c4baf592bfa4429c00a1d52abb3354852c9f06",
+      "policy_version" : "miniforge-etl-evaluation-policy/1.0.0",
+      "evaluator_hash" : "sha256:a9fb9745256eec50e4605ccc2d69ff2676ffe941ca78a0befadf5306bd2927de",
+      "evaluator_version" : "miniforge-etl-workbench-adapter/1.0.0"
+    },
+    "resolved_run" : {
+      "schema_version" : "miniforge_resolved_run_factors/v1",
+      "domain" : "etl",
+      "configuration_hash" : "sha256:adf1f7f0ecd516e3671956e7f4b742e8a8950bbd1372f4e9aa2681170552a884",
+      "factor_count" : 15,
+      "redacted_count" : 1,
+      "factors" : {
+        "[:environment :env/connectors :conn/source :connector/type]" : ":file",
+        "[:environment :env/name]" : "\"fixture\"",
+        "[:environment :env/stages \"Ingest\" :file/format]" : ":json",
+        "[:environment :env/stages \"Ingest\" :file/path]" : "\"examples/workflows/add-tests.json\"",
+        "[:pipeline :pipeline/input-datasets]" : "[]",
+        "[:pipeline :pipeline/mode]" : ":full-refresh",
+        "[:pipeline :pipeline/name]" : "\"Workbench Adapter Fixture\"",
+        "[:pipeline :pipeline/output-datasets]" : "[]",
+        "[:pipeline :pipeline/stages 0 :stage/connector-ref]" : ":conn/source",
+        "[:pipeline :pipeline/stages 0 :stage/dependencies]" : "[]",
+        "[:pipeline :pipeline/stages 0 :stage/family]" : ":ingest",
+        "[:pipeline :pipeline/stages 0 :stage/input-datasets]" : "[]",
+        "[:pipeline :pipeline/stages 0 :stage/name]" : "\"Ingest\"",
+        "[:pipeline :pipeline/stages 0 :stage/output-datasets 0]" : ":ds/raw",
+        "[:pipeline :pipeline/version]" : "\"1.0.0\""
+      },
+      "change" : null
+    }
+  }
+}
