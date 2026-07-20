@@ -23,6 +23,8 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use workbench_contract::{
     RegistryRef, StateEvaluation, StateStatus, StateVarRegistry, StateVariable, WorkbenchSnapshotV1,
 };
@@ -1104,8 +1106,10 @@ impl CorrectionV1 {
         }
     }
 
-    /// Refuse records that carry no provenance: a blank rationale or a
-    /// blank corrector defeats the point of the correction loop.
+    /// Refuse records that carry no provenance: a blank rationale, a
+    /// blank corrector, or a `corrected_at` that is not the RFC 3339 the
+    /// struct documents. A malformed timestamp that still loaded would
+    /// carry a bogus recorded-at into gating and provenance output.
     pub fn validate(&self) -> Result<(), CorrectionError> {
         if self.rationale.trim().is_empty() {
             return Err(CorrectionError::EmptyRationale { key: self.key() });
@@ -1113,15 +1117,31 @@ impl CorrectionV1 {
         if self.corrected_by.trim().is_empty() {
             return Err(CorrectionError::EmptyCorrectedBy { key: self.key() });
         }
+        if OffsetDateTime::parse(&self.corrected_at, &Rfc3339).is_err() {
+            return Err(CorrectionError::MalformedCorrectedAt {
+                key: self.key(),
+                corrected_at: self.corrected_at.clone(),
+            });
+        }
         Ok(())
     }
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum CorrectionError {
-    EmptyRationale { key: CorrectionKey },
-    EmptyCorrectedBy { key: CorrectionKey },
-    DuplicateKey { key: CorrectionKey },
+    EmptyRationale {
+        key: CorrectionKey,
+    },
+    EmptyCorrectedBy {
+        key: CorrectionKey,
+    },
+    MalformedCorrectedAt {
+        key: CorrectionKey,
+        corrected_at: String,
+    },
+    DuplicateKey {
+        key: CorrectionKey,
+    },
 }
 
 impl fmt::Display for CorrectionError {
@@ -1132,6 +1152,12 @@ impl fmt::Display for CorrectionError {
             }
             Self::EmptyCorrectedBy { key } => {
                 write!(f, "correction {key} has an empty corrected_by; refused")
+            }
+            Self::MalformedCorrectedAt { key, corrected_at } => {
+                write!(
+                    f,
+                    "correction {key} corrected_at {corrected_at} is not RFC 3339; refused"
+                )
             }
             Self::DuplicateKey { key } => {
                 write!(f, "duplicate correction for {key}; one correction per cell")
@@ -1256,7 +1282,11 @@ pub fn diff_with_corrections(
     }
 
     let mut current_keys: BTreeSet<(String, String, String)> = BTreeSet::new();
+    // `applied` keeps first-seen order for the report; `applied_seen` is
+    // the O(log n) membership guard so the dedup does not rescan the Vec
+    // for every corrected cell.
     let mut applied: Vec<CorrectionKey> = Vec::new();
+    let mut applied_seen: BTreeSet<CorrectionKey> = BTreeSet::new();
     let mut regressions = Vec::new();
     for snap in current {
         let experiment = experiment_id_of(snap);
@@ -1269,7 +1299,7 @@ pub fn diff_with_corrections(
             let (expected_status, expected_score, corrected) = match correction {
                 Some(correction) => {
                     let correction_key = correction.key();
-                    if !applied.contains(&correction_key) {
+                    if applied_seen.insert(correction_key.clone()) {
                         applied.push(correction_key);
                     }
                     (
@@ -2096,6 +2126,24 @@ mod tests {
         let err = CorrectionSet::new(vec![correction]).expect_err("blank rationale refused");
 
         assert!(matches!(err, CorrectionError::EmptyRationale { .. }));
+    }
+
+    #[test]
+    fn correction_with_a_non_rfc3339_corrected_at_is_refused() {
+        let mut correction = correction_for_grounded_cell(StateStatus::Pass, None);
+        correction.corrected_at = "2026-07-19".to_string();
+
+        let err = CorrectionSet::new(vec![correction]).expect_err("malformed timestamp refused");
+
+        assert!(matches!(err, CorrectionError::MalformedCorrectedAt { .. }));
+    }
+
+    #[test]
+    fn correction_with_an_rfc3339_offset_corrected_at_is_accepted() {
+        let mut correction = correction_for_grounded_cell(StateStatus::Pass, None);
+        correction.corrected_at = "2026-07-19T12:30:00-07:00".to_string();
+
+        assert!(CorrectionSet::new(vec![correction]).is_ok());
     }
 
     #[test]
