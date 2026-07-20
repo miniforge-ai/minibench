@@ -159,11 +159,18 @@ not just measure, it gates. Accepting a new result means updating
 
 ## 4. Tenant grounding
 
-| Tenant | Registry | State vars | Feed |
+State vars and registry versions below are what this repo's committed
+fixtures actually carry (`fixtures/`, all registries @ 2026.06.06.1).
+The `workbench-contract` repo's synthetic fixtures demonstrate a broader
+per-tenant set (e.g. `career.oracle.reproduction_delta`,
+`miniforge.gate.critical_violations_block`); those land here only when a
+feed emits them.
+
+| Tenant | Registry | State vars in committed fixtures | Feed |
 |---|---|---|---|
-| portfolio | `portfolio-state-vars` | `portfolio.lens.validation_readiness`, `portfolio.signal.quality_scored`, `portfolio.data.fidelity_gate` | live adapter output |
-| career | `career-state-vars` @ 2026.06.06.1 | `career.lens.report_grounded`, `career.lens.evidence_sufficiency`, `career.claim.evidence_traceability`, `career.oracle.reproduction_delta` | live adapter output (`bb workbench:*` in thesium-workflows) |
-| miniforge | `miniforge-state-vars` | `miniforge.workflow.machine_authoritative`, `miniforge.evidence.bundle_complete`, `miniforge.gate.critical_violations_block` | hand-written `fixtures/sample-snapshot.json`; adapter not built |
+| portfolio | `portfolio-state-vars` | `portfolio.lens.validation_readiness`, `portfolio.data.fidelity_gate` | live adapter output |
+| career | `career-state-vars` | `career.lens.report_grounded` | live adapter output (`bb workbench:*` in thesium-workflows) |
+| miniforge | `miniforge-state-vars` | `miniforge.workflow.machine_authoritative`, `miniforge.evidence.bundle_complete` | hand-written `fixtures/sample-snapshot.json`; adapter not built |
 | time | — | — | named only, unstarted |
 
 The miniforge tenant grounds in the supervisory-state projection and the
