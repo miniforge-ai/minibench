@@ -47,13 +47,14 @@ cargo run -p minibench-cli -- compare fixtures/experiments
 
 `fixtures/sample-snapshot.json` remains the hand-written Miniforge
 orchestration example. The product-owned Miniforge ETL adapter now supplies a
-real baseline/candidate pair and its registry under `fixtures/miniforge-etl/`.
+real baseline/candidate pair under `fixtures/miniforge-etl/variants/`, with
+its registry pinned at `fixtures/registries/miniforge-etl-state-vars.json`.
 The pair differs at exactly one resolved-run factor (`:pipeline/mode`) and is
 checked by the kernel integration suite.
 
 ```bash
 cargo run -p minibench-cli -- compare \
-  fixtures/miniforge-etl/variants fixtures/miniforge-etl/registry.json
+  fixtures/miniforge-etl/variants fixtures/registries/miniforge-etl-state-vars.json
 ```
 
 ## Shell (macOS)
