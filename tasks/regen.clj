@@ -13,9 +13,28 @@
    sibling layout) + babashka. NEVER point this at real tenant data — the
    committed fixtures must stay synthetic."
   (:require [babashka.fs :as fs]
-            [babashka.process :as p]))
+            [babashka.process :as p]
+            [clojure.string :as str]))
 
 (def ^:private experiment "career.lens.acme-l4-eval")
+
+(defn- repo-root
+  "Absolute path to the minibench repo root (regen's cwd) — the prefix
+   stripped from generated provenance paths."
+  []
+  (str (fs/absolutize ".")))
+
+(defn- sanitize!
+  "Strip the absolute repo-root prefix from any path the adapters
+   embedded in `path` (e.g. a source-provenance evidence quote), leaving
+   a repo-relative path. Keeps committed fixtures deterministic across
+   machines — an absolute, user-specific path both leaks the local
+   environment and churns the diff on every regen."
+  [path]
+  (let [raw (slurp path)
+        cleaned (str/replace raw (str (repo-root) "/") "")]
+    (when (not= raw cleaned)
+      (spit path cleaned))))
 
 (defn- workflows-dir
   "Absolute path to the thesium-workflows checkout (the producer repo)."
@@ -69,5 +88,9 @@
           "--out" (out "experiments" "portfolio-degraded.json")
           "--experiment-id" "portfolio.readiness" "--label" "degraded" "--model" "risk-pipeline"
           "--variant-inputs")
+      ;; The adapters record the absolute input path they were handed in
+      ;; source-provenance quotes; strip the repo-root prefix so the
+      ;; committed fixtures stay machine-independent.
+      (run! sanitize! (map str (fs/glob (out "experiments") "*.json")))
       (println "Regenerated fixtures from real adapter output.")
       (println "  cargo run -p minibench-cli -- compare fixtures/experiments"))))

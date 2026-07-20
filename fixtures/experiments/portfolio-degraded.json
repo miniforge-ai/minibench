@@ -50,7 +50,7 @@
     "evidence_refs" : [ {
       "id" : "portfolio.source.readiness",
       "source_role" : "source-provenance",
-      "quote" : "/Users/chris/ws/miniforge.ai/minibench/fixtures/inputs/portfolio-readiness-degraded.json",
+      "quote" : "fixtures/inputs/portfolio-readiness-degraded.json",
       "hash" : "sha256:225da174e33d91ebb05b42c7828294a460f8db2828a2e8efe01ac9def34ed9f0"
     } ],
     "value" : false,

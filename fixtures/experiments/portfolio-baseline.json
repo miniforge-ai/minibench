@@ -47,7 +47,7 @@
     "evidence_refs" : [ {
       "id" : "portfolio.source.readiness",
       "source_role" : "source-provenance",
-      "quote" : "/Users/chris/ws/miniforge.ai/minibench/fixtures/inputs/portfolio-readiness.json",
+      "quote" : "fixtures/inputs/portfolio-readiness.json",
       "hash" : "sha256:2ffab2800585d1a917c5361d861539828c03e251da57ee81eade714a94fe663f"
     } ],
     "value" : true,
