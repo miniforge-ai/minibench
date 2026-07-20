@@ -45,8 +45,16 @@ bb regen-fixtures            # needs a thesium-workflows checkout + babashka
 cargo run -p minibench-cli -- compare fixtures/experiments
 ```
 
-`fixtures/sample-snapshot.json` stays hand-written — it stands in for the
-miniforge tenant, whose adapter doesn't exist yet.
+`fixtures/sample-snapshot.json` remains the hand-written Miniforge
+orchestration example. The product-owned Miniforge ETL adapter now supplies a
+real baseline/candidate pair and its registry under `fixtures/miniforge-etl/`.
+The pair differs at exactly one resolved-run factor (`:pipeline/mode`) and is
+checked by the kernel integration suite.
+
+```bash
+cargo run -p minibench-cli -- compare \
+  fixtures/miniforge-etl/variants fixtures/miniforge-etl/registry.json
+```
 
 ## Shell (macOS)
 
@@ -93,9 +101,9 @@ cargo run --bin minibench -- compare path/to/one-experiment path/to/registry.jso
   and the bespoke per-tenant view plugins (claim graph, equity curve, PR fleet).
 - **Kernel** — narration-packet assembly, registry-driven generic
   evaluators (regression diff shipped — see **Regression gate**).
-- **Live feed for miniforge** — once a miniforge adapter exists,
-  regenerate `fixtures/sample-snapshot.json` from it too (career +
-  portfolio already feed from their real adapters — see **Live feeds**).
+- **Miniforge orchestration feed** — ETL now emits real snapshots; the
+  hand-written `sample-snapshot.json` can be replaced after orchestration has
+  one canonical resolved-run configuration boundary.
 
 ## Run
 
