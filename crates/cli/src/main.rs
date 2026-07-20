@@ -10,7 +10,7 @@
 //! `minibench validate <snapshot.json|dir> <registry.json>` — check every
 //! evaluation's evidence refs against the registry's declared
 //! evidence requirements. This is the terminal view of the permutation
-//! harness; the Swift shell renders the same `ComparisonMatrix` later.
+//! harness; the Swift shell will render the same `ValidationReport` later.
 
 mod strings;
 
