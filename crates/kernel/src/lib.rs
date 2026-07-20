@@ -11,8 +11,9 @@
 //! adapter; the kernel does the cross-cutting roll-up, regression
 //! diff, and narration-packet assembly the shell renders.
 //!
-//! Ships the run summary, comparison matrix, and regression diff;
-//! narration-packet assembly lands in a later slice.
+//! Ships the run summary, comparison matrix, regression diff, and
+//! evidence-requirements validation; narration-packet assembly lands in
+//! a later slice.
 
 use std::collections::HashMap;
 
@@ -23,8 +24,11 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use time::OffsetDateTime;
+use time::format_description::well_known::Rfc3339;
 use workbench_contract::{
-    RegistryRef, StateEvaluation, StateStatus, StateVarRegistry, StateVariable, WorkbenchSnapshotV1,
+    EvidenceRef, EvidenceRequirements, RegistryRef, StateEvaluation, StateStatus, StateVarRegistry,
+    StateVariable, WorkbenchSnapshotV1,
 };
 
 /// Canonical registry gate effect for a state variable that blocks run
@@ -1038,6 +1042,393 @@ pub fn diff(baseline: &[WorkbenchSnapshotV1], current: &[WorkbenchSnapshotV1]) -
     RegressionReport { regressions }
 }
 
+//------------------------------------------------------------------------------
+// Evidence-requirements validation — the trust gate
+//
+// The registry declares, per state variable, what an evaluation must be
+// able to point at to be trusted (`EvidenceRequirements`). Nothing else
+// in the pipeline enforces that declaration, so an evaluator can report
+// `pass` with zero evidence and every downstream view renders it as
+// settled fact. `validate` closes that hole: given a snapshot and the
+// registry that scored it, it reports every evaluation whose evidence
+// falls short of the registry's requirements. The registry is REQUIRED —
+// the requirements are the yardstick, so there is no registry-free
+// variant of this op.
+//
+// `required_refs` matching: an entry names an evidence TYPE in
+// PascalCase ("LensVerdict"); the refs that satisfy it carry that type
+// as a kebab-case `source_role` ("lens-verdict"). The golden fixtures
+// pair exactly those spellings, and `EvidenceRef.id` is an instance id
+// ("career.lens-verdict.technical-execution.l3") no registry could name
+// ahead of time — so entries match against `source_role`, with both
+// sides reduced to lowercase alphanumerics.
+
+/// Seconds per hour — unit conversion for `freshness_sla_hours`.
+const SECONDS_PER_HOUR: i128 = 3_600;
+
+/// Why an evaluation's evidence falls short of its registry
+/// requirements. Fieldless so reports stay machine-greppable; the
+/// specifics ride in the violation's human message.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum EvidenceViolationKind {
+    /// The state variable declares evidence requirements but the
+    /// evaluation carries zero evidence refs.
+    MissingEvidence,
+    /// The evaluation reports `pass` with zero evidence refs — the
+    /// "no high confidence without evidence" invariant, enforced even
+    /// when the state variable declares no requirements.
+    PassWithoutEvidence,
+    /// Fewer evidence refs than the registry's `min_count`.
+    BelowMinCount,
+    /// No evidence ref's source role matches a `required_refs` entry.
+    MissingRequiredRef,
+    /// `must_include_hash` is set and a ref carries no hash.
+    MissingHash,
+    /// `must_include_source_role` is set and a ref's source role is
+    /// empty.
+    MissingSourceRole,
+    /// A ref's `created_at` is older than `freshness_sla_hours` at the
+    /// evaluation's `evaluated_at`.
+    StaleEvidence,
+    /// A freshness SLA is set and a ref carries no `created_at`. The
+    /// SLA cannot be verified without a timestamp, so this is strict —
+    /// a violation, not a skip.
+    MissingCreatedAt,
+    /// A timestamp needed for the freshness check is not RFC 3339.
+    MalformedTimestamp,
+    /// The evaluation names a state variable the registry does not
+    /// define, so its requirements cannot be resolved. A violation
+    /// rather than a hard error, consistent with `summarize`/`compare`
+    /// tolerating unregistered ids — but validation cannot vouch for
+    /// what it cannot look up.
+    UnknownStateVar,
+}
+
+/// One evaluation's shortfall against its evidence requirements.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct EvidenceViolation {
+    pub state_var_id: String,
+    pub kind: EvidenceViolationKind,
+    pub message: String,
+}
+
+/// The outcome of [`validate`] — every shortfall found, in evaluation
+/// order.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ValidationReport {
+    pub product: String,
+    pub snapshot_id: String,
+    /// Evaluations checked.
+    pub total: usize,
+    pub violations: Vec<EvidenceViolation>,
+}
+
+impl ValidationReport {
+    /// True when every evaluation satisfies its evidence requirements —
+    /// the gate passes.
+    pub fn is_clean(&self) -> bool {
+        self.violations.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValidateError {
+    RegistryRefMismatch { expected: String, found: String },
+    RegistryProductMismatch { expected: String, found: String },
+}
+
+impl fmt::Display for ValidateError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::RegistryRefMismatch { expected, found } => {
+                write!(
+                    f,
+                    "registry {found} does not match snapshot registry {expected}"
+                )
+            }
+            Self::RegistryProductMismatch { expected, found } => {
+                write!(
+                    f,
+                    "registry product {found} does not match snapshot product {expected}"
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ValidateError {}
+
+/// Check every evaluation's evidence refs against the registry's
+/// declared `evidence_requirements` and report each shortfall. All
+/// thresholds (`min_count`, `freshness_sla_hours`, the required ref
+/// set) come from the registry; the kernel invents none.
+pub fn validate(
+    snapshot: &WorkbenchSnapshotV1,
+    registry: &StateVarRegistry,
+) -> Result<ValidationReport, ValidateError> {
+    let snapshot_registry_ref = registry_ref_key(&snapshot.registry_ref);
+    let found_registry_ref = registry_key(registry);
+    if found_registry_ref != snapshot_registry_ref {
+        return Err(ValidateError::RegistryRefMismatch {
+            expected: snapshot_registry_ref,
+            found: found_registry_ref,
+        });
+    }
+    if registry.product != snapshot.product {
+        return Err(ValidateError::RegistryProductMismatch {
+            expected: snapshot.product.clone(),
+            found: registry.product.clone(),
+        });
+    }
+
+    let state_vars: BTreeMap<&str, &StateVariable> = registry
+        .state_vars
+        .iter()
+        .map(|state_var| (state_var.id.as_str(), state_var))
+        .collect();
+
+    let mut violations = Vec::new();
+    for evaluation in &snapshot.evaluations {
+        match state_vars.get(evaluation.state_var_id.as_str()) {
+            Some(state_var) => validate_evaluation(
+                evaluation,
+                &state_var.evidence_requirements,
+                &mut violations,
+            ),
+            None => violations.push(violation(
+                evaluation,
+                EvidenceViolationKind::UnknownStateVar,
+                "evaluation names a state variable absent from the registry".to_string(),
+            )),
+        }
+    }
+
+    Ok(ValidationReport {
+        product: snapshot.product.clone(),
+        snapshot_id: snapshot.snapshot_id.clone(),
+        total: snapshot.evaluations.len(),
+        violations,
+    })
+}
+
+fn validate_evaluation(
+    evaluation: &StateEvaluation,
+    requirements: &EvidenceRequirements,
+    violations: &mut Vec<EvidenceViolation>,
+) {
+    if evaluation.evidence_refs.is_empty() {
+        // Zero refs implies every per-rule check, so report the two
+        // invariant shortfalls and skip the redundant detail.
+        if evaluation.status == StateStatus::Pass {
+            violations.push(violation(
+                evaluation,
+                EvidenceViolationKind::PassWithoutEvidence,
+                "status pass with no evidence refs".to_string(),
+            ));
+        }
+        if declares_requirements(requirements) {
+            violations.push(violation(
+                evaluation,
+                EvidenceViolationKind::MissingEvidence,
+                "declares evidence requirements but carries no evidence refs".to_string(),
+            ));
+        }
+        return;
+    }
+    violations.extend(check_min_count(evaluation, requirements));
+    violations.extend(check_required_refs(evaluation, requirements));
+    violations.extend(check_hashes(evaluation, requirements));
+    violations.extend(check_source_roles(evaluation, requirements));
+    violations.extend(check_freshness(evaluation, requirements));
+}
+
+/// True when the state variable declares ANY evidence requirement. A
+/// `must_include_*` of `Some(false)` explicitly waives that rule, so it
+/// does not count as a declared requirement.
+fn declares_requirements(requirements: &EvidenceRequirements) -> bool {
+    !requirements.required_refs.is_empty()
+        || requirements.min_count.is_some()
+        || requirements.must_include_hash == Some(true)
+        || requirements.must_include_source_role == Some(true)
+        || requirements.freshness_sla_hours.is_some()
+}
+
+fn check_min_count(
+    evaluation: &StateEvaluation,
+    requirements: &EvidenceRequirements,
+) -> Option<EvidenceViolation> {
+    let required = requirements.min_count?;
+    let found = evaluation.evidence_refs.len();
+    if found >= required as usize {
+        return None;
+    }
+    Some(violation(
+        evaluation,
+        EvidenceViolationKind::BelowMinCount,
+        format!("{found} evidence ref(s), registry requires at least {required}"),
+    ))
+}
+
+fn check_required_refs(
+    evaluation: &StateEvaluation,
+    requirements: &EvidenceRequirements,
+) -> Vec<EvidenceViolation> {
+    let present_roles: BTreeSet<String> = evaluation
+        .evidence_refs
+        .iter()
+        .map(|evidence_ref| required_ref_key(&evidence_ref.source_role))
+        .collect();
+    requirements
+        .required_refs
+        .iter()
+        .filter(|entry| !present_roles.contains(&required_ref_key(entry)))
+        .map(|entry| {
+            violation(
+                evaluation,
+                EvidenceViolationKind::MissingRequiredRef,
+                format!("no evidence ref's source role matches required ref {entry}"),
+            )
+        })
+        .collect()
+}
+
+/// Case/format-insensitive key matching a registry `required_refs` entry
+/// ("LensVerdict") against an evidence ref's `source_role`
+/// ("lens-verdict"): both sides reduce to lowercase alphanumerics.
+fn required_ref_key(value: &str) -> String {
+    value
+        .chars()
+        .filter(char::is_ascii_alphanumeric)
+        .map(|c| c.to_ascii_lowercase())
+        .collect()
+}
+
+fn check_hashes(
+    evaluation: &StateEvaluation,
+    requirements: &EvidenceRequirements,
+) -> Vec<EvidenceViolation> {
+    if requirements.must_include_hash != Some(true) {
+        return Vec::new();
+    }
+    evaluation
+        .evidence_refs
+        .iter()
+        .filter(|evidence_ref| evidence_ref.hash.as_deref().is_none_or(str::is_empty))
+        .map(|evidence_ref| {
+            violation(
+                evaluation,
+                EvidenceViolationKind::MissingHash,
+                format!("evidence ref {} carries no hash", evidence_ref.id),
+            )
+        })
+        .collect()
+}
+
+fn check_source_roles(
+    evaluation: &StateEvaluation,
+    requirements: &EvidenceRequirements,
+) -> Vec<EvidenceViolation> {
+    if requirements.must_include_source_role != Some(true) {
+        return Vec::new();
+    }
+    evaluation
+        .evidence_refs
+        .iter()
+        .filter(|evidence_ref| evidence_ref.source_role.is_empty())
+        .map(|evidence_ref| {
+            violation(
+                evaluation,
+                EvidenceViolationKind::MissingSourceRole,
+                format!("evidence ref {} carries no source role", evidence_ref.id),
+            )
+        })
+        .collect()
+}
+
+fn check_freshness(
+    evaluation: &StateEvaluation,
+    requirements: &EvidenceRequirements,
+) -> Vec<EvidenceViolation> {
+    let Some(sla_hours) = requirements.freshness_sla_hours else {
+        return Vec::new();
+    };
+    let evaluated_at = match parse_rfc3339(&evaluation.evaluated_at) {
+        Ok(evaluated_at) => evaluated_at,
+        Err(_) => {
+            return vec![violation(
+                evaluation,
+                EvidenceViolationKind::MalformedTimestamp,
+                format!("evaluated_at {} is not RFC 3339", evaluation.evaluated_at),
+            )];
+        }
+    };
+    evaluation
+        .evidence_refs
+        .iter()
+        .filter_map(|evidence_ref| {
+            check_ref_freshness(evaluation, evidence_ref, evaluated_at, sla_hours)
+        })
+        .collect()
+}
+
+fn check_ref_freshness(
+    evaluation: &StateEvaluation,
+    evidence_ref: &EvidenceRef,
+    evaluated_at: OffsetDateTime,
+    sla_hours: u64,
+) -> Option<EvidenceViolation> {
+    let Some(created_at) = evidence_ref.created_at.as_deref() else {
+        return Some(violation(
+            evaluation,
+            EvidenceViolationKind::MissingCreatedAt,
+            format!(
+                "evidence ref {} carries no created_at under a {sla_hours}h freshness SLA",
+                evidence_ref.id
+            ),
+        ));
+    };
+    let Ok(created) = parse_rfc3339(created_at) else {
+        return Some(violation(
+            evaluation,
+            EvidenceViolationKind::MalformedTimestamp,
+            format!(
+                "evidence ref {} created_at {created_at} is not RFC 3339",
+                evidence_ref.id
+            ),
+        ));
+    };
+    let age_seconds = i128::from((evaluated_at - created).whole_seconds());
+    let sla_seconds = i128::from(sla_hours) * SECONDS_PER_HOUR;
+    (age_seconds > sla_seconds).then(|| {
+        violation(
+            evaluation,
+            EvidenceViolationKind::StaleEvidence,
+            format!(
+                "evidence ref {} is {}h old, freshness SLA is {sla_hours}h",
+                evidence_ref.id,
+                age_seconds / SECONDS_PER_HOUR
+            ),
+        )
+    })
+}
+
+fn parse_rfc3339(value: &str) -> Result<OffsetDateTime, time::error::Parse> {
+    OffsetDateTime::parse(value, &Rfc3339)
+}
+
+fn violation(
+    evaluation: &StateEvaluation,
+    kind: EvidenceViolationKind,
+    message: String,
+) -> EvidenceViolation {
+    EvidenceViolation {
+        state_var_id: evaluation.state_var_id.clone(),
+        kind,
+        message,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1156,13 +1547,7 @@ mod tests {
                         description: "test state variable".to_string(),
                         value_type: ValueType::Number,
                         thresholds: BTreeMap::new(),
-                        evidence_requirements: EvidenceRequirements {
-                            required_refs: Vec::new(),
-                            min_count: None,
-                            must_include_hash: None,
-                            must_include_source_role: None,
-                            freshness_sla_hours: None,
-                        },
+                        evidence_requirements: no_requirements(),
                         score_components: Vec::new(),
                         gate_effects,
                         lifecycle: Lifecycle::Active,
@@ -1652,5 +2037,324 @@ mod tests {
         assert_eq!(report.regressions.len(), 1);
         assert_eq!(report.regressions[0].baseline_status, StateStatus::Pass);
         assert_eq!(report.regressions[0].current_status, StateStatus::Fail);
+    }
+
+    fn no_requirements() -> EvidenceRequirements {
+        EvidenceRequirements {
+            required_refs: Vec::new(),
+            min_count: None,
+            must_include_hash: None,
+            must_include_source_role: None,
+            freshness_sla_hours: None,
+        }
+    }
+
+    /// The opus variant fixture: one `pass` evaluation with two
+    /// `lens-verdict` evidence refs (no hashes, no `created_at`).
+    fn opus_snapshot() -> WorkbenchSnapshotV1 {
+        serde_json::from_str(include_str!(
+            "../../../fixtures/experiments/opus-semantic.json"
+        ))
+        .expect("decode opus variant")
+    }
+
+    fn registry_with_requirements(
+        snapshot: &WorkbenchSnapshotV1,
+        requirements: EvidenceRequirements,
+    ) -> StateVarRegistry {
+        let mut registry = registry_for_snapshot(snapshot);
+        for state_var in &mut registry.state_vars {
+            state_var.evidence_requirements = requirements.clone();
+        }
+        registry
+    }
+
+    fn violation_kinds(report: &ValidationReport) -> Vec<EvidenceViolationKind> {
+        report.violations.iter().map(|v| v.kind).collect()
+    }
+
+    #[test]
+    fn validate_is_vacuously_clean_without_declared_requirements() {
+        let snap = opus_snapshot();
+        let registry = registry_for_snapshot(&snap);
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(report.is_clean());
+        assert_eq!(report.total, snap.evaluations.len());
+    }
+
+    #[test]
+    fn validate_treats_waived_must_include_rules_as_no_requirements() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                must_include_hash: Some(false),
+                must_include_source_role: Some(false),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].status = StateStatus::Fail;
+        snap.evaluations[0].evidence_refs.clear();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(report.is_clean(), "Some(false) waives, not requires");
+    }
+
+    #[test]
+    fn validate_flags_below_min_count() {
+        let snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                min_count: Some(3),
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::BelowMinCount]
+        );
+    }
+
+    #[test]
+    fn validate_accepts_min_count_met() {
+        let snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                min_count: Some(2),
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(report.is_clean());
+    }
+
+    #[test]
+    fn validate_matches_required_refs_against_source_role() {
+        let snap = opus_snapshot();
+        // "LensVerdict" must match the fixture's kebab-case source role
+        // "lens-verdict"; "Claim" has no matching ref.
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                required_refs: vec!["LensVerdict".to_string(), "Claim".to_string()],
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MissingRequiredRef]
+        );
+        assert!(
+            report.violations[0].message.contains("Claim"),
+            "the unmatched entry is named"
+        );
+    }
+
+    #[test]
+    fn validate_flags_refs_missing_a_required_hash() {
+        let snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                must_include_hash: Some(true),
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![
+                EvidenceViolationKind::MissingHash,
+                EvidenceViolationKind::MissingHash
+            ],
+            "one violation per hashless ref"
+        );
+
+        let mut hashed = opus_snapshot();
+        for evidence_ref in &mut hashed.evaluations[0].evidence_refs {
+            evidence_ref.hash = Some("sha256:cafe".to_string());
+        }
+        let report = validate(&hashed, &registry).expect("matching registry");
+        assert!(report.is_clean());
+    }
+
+    #[test]
+    fn validate_flags_refs_missing_a_required_source_role() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                must_include_source_role: Some(true),
+                ..no_requirements()
+            },
+        );
+        let report = validate(&snap, &registry).expect("matching registry");
+        assert!(report.is_clean(), "fixture refs carry source roles");
+
+        snap.evaluations[0].evidence_refs[0].source_role = String::new();
+        let report = validate(&snap, &registry).expect("matching registry");
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MissingSourceRole]
+        );
+    }
+
+    #[test]
+    fn validate_flags_missing_created_at_under_a_freshness_sla() {
+        let snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                freshness_sla_hours: Some(24),
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![
+                EvidenceViolationKind::MissingCreatedAt,
+                EvidenceViolationKind::MissingCreatedAt
+            ],
+            "an SLA without a timestamp is unverifiable, so strict"
+        );
+    }
+
+    #[test]
+    fn validate_applies_the_freshness_sla_at_evaluated_at() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                freshness_sla_hours: Some(24),
+                ..no_requirements()
+            },
+        );
+        // The fixture evaluates at 2026-06-10T16:07:46Z; same-day refs
+        // are inside a 24h SLA.
+        for evidence_ref in &mut snap.evaluations[0].evidence_refs {
+            evidence_ref.created_at = Some("2026-06-10T00:00:00Z".to_string());
+        }
+        let report = validate(&snap, &registry).expect("matching registry");
+        assert!(report.is_clean());
+
+        snap.evaluations[0].evidence_refs[0].created_at = Some("2026-06-01T00:00:00Z".to_string());
+        let report = validate(&snap, &registry).expect("matching registry");
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::StaleEvidence]
+        );
+    }
+
+    #[test]
+    fn validate_flags_malformed_timestamps_under_a_freshness_sla() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                freshness_sla_hours: Some(24),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].evaluated_at = "yesterday-ish".to_string();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MalformedTimestamp]
+        );
+    }
+
+    #[test]
+    fn validate_flags_declared_requirements_with_zero_refs() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                required_refs: vec!["LensVerdict".to_string()],
+                min_count: Some(1),
+                must_include_hash: Some(true),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].status = StateStatus::Fail;
+        snap.evaluations[0].evidence_refs.clear();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MissingEvidence],
+            "zero refs collapses to one invariant violation, not per-rule noise"
+        );
+    }
+
+    #[test]
+    fn validate_flags_pass_with_zero_refs_even_without_requirements() {
+        let mut snap = opus_snapshot();
+        let registry = registry_for_snapshot(&snap);
+        snap.evaluations[0].evidence_refs.clear();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::PassWithoutEvidence]
+        );
+    }
+
+    #[test]
+    fn validate_flags_evaluations_missing_from_registry() {
+        let snap = opus_snapshot();
+        let registry = registry_for_snapshot(&snap);
+        let mut renamed = snap;
+        renamed.evaluations[0].state_var_id = "career.lens.unregistered".to_string();
+
+        let report = validate(&renamed, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::UnknownStateVar]
+        );
+    }
+
+    #[test]
+    fn validate_rejects_wrong_registry() {
+        let snap = opus_snapshot();
+        let mut registry = registry_for_snapshot(&snap);
+        registry.version = "2026.06.06.2".to_string();
+
+        let err = validate(&snap, &registry).expect_err("wrong registry rejected");
+
+        assert!(matches!(err, ValidateError::RegistryRefMismatch { .. }));
+    }
+
+    #[test]
+    fn validate_rejects_wrong_registry_product() {
+        let snap = opus_snapshot();
+        let mut registry = registry_for_snapshot(&snap);
+        registry.product = "portfolio".to_string();
+
+        let err = validate(&snap, &registry).expect_err("wrong product rejected");
+
+        assert!(matches!(err, ValidateError::RegistryProductMismatch { .. }));
     }
 }
