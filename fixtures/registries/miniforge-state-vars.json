@@ -1,0 +1,95 @@
+{
+  "schema_version": "state_var_registry/v1",
+  "registry_id": "miniforge-state-vars",
+  "version": "2026.06.06.1",
+  "product": "miniforge",
+  "state_vars": [
+    {
+      "id": "miniforge.workflow.machine_authoritative",
+      "version": "0.1.0",
+      "product": "miniforge",
+      "area": "workflow",
+      "kind": "integrity",
+      "description": "Workflow run executes against exactly one authoritative compiled execution machine; UI lifecycle fields are derived projections, not independent authority.",
+      "value_type": "boolean",
+      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "evidence_requirements": {
+        "required_refs": ["WorkflowRun", "MachineSnapshot"],
+        "min_count": 1,
+        "must_include_hash": true
+      },
+      "score_components": [
+        "machine_presence",
+        "projection_consistency",
+        "illegal_mutation_absence"
+      ],
+      "gate_effects": {
+        "pass": "none",
+        "warn": "marks_low_confidence",
+        "fail": "blocks_transition",
+        "blocked": "requires_reingest"
+      },
+      "lifecycle": "draft",
+      "owner": "supervisory-state",
+      "notes": "Anchors N2 §workflow-execution-model (one compiled execution machine; convenience fields are derived projections)."
+    },
+    {
+      "id": "miniforge.evidence.bundle_complete",
+      "version": "0.1.0",
+      "product": "miniforge",
+      "area": "evidence",
+      "kind": "sufficiency",
+      "description": "Evidence bundle covers intent, plan, implement, verify, review, semantic validation, policy checks, and outcome.",
+      "value_type": "number",
+      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "evidence_requirements": {
+        "required_refs": ["EvidenceBundle"],
+        "min_count": 1,
+        "must_include_hash": true
+      },
+      "score_components": [
+        "phase_coverage",
+        "semantic_validation",
+        "policy_checks",
+        "outcome_presence"
+      ],
+      "gate_effects": {
+        "pass": "none",
+        "warn": "marks_low_confidence",
+        "fail": "blocks_transition",
+        "blocked": "requires_reingest"
+      },
+      "lifecycle": "draft",
+      "owner": "supervisory-state",
+      "notes": "Anchors N6 evidence-bundle phase fields."
+    },
+    {
+      "id": "miniforge.gate.critical_violations_block",
+      "version": "0.1.0",
+      "product": "miniforge",
+      "area": "gate",
+      "kind": "compliance",
+      "description": "Critical gate/policy violations block progression unless a bounded override is approved and evidenced.",
+      "value_type": "boolean",
+      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "evidence_requirements": {
+        "required_refs": ["PolicyEvaluation", "ControlAction"],
+        "min_count": 1
+      },
+      "score_components": [
+        "critical_detection",
+        "block_effect",
+        "override_evidence"
+      ],
+      "gate_effects": {
+        "pass": "none",
+        "warn": "marks_low_confidence",
+        "fail": "blocks_transition",
+        "blocked": "requires_reingest"
+      },
+      "lifecycle": "draft",
+      "owner": "supervisory-state",
+      "notes": "Anchors N4 policy-packs + N8 control. Evidence refs map to supervisory PolicyEvaluation entity."
+    }
+  ]
+}

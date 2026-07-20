@@ -4,9 +4,10 @@
 ;; Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
 
 (ns validate
-  "Run `minibench validate` over every committed adapter-produced
-   snapshot (fixtures/baseline + fixtures/experiments), pairing each
-   snapshot with its registry by `registry_ref.registry_id` from
+  "Run `minibench validate` over every committed snapshot (fixtures/*.json
+   plus fixtures/baseline, fixtures/experiments, and
+   fixtures/miniforge-etl/variants), pairing each snapshot with its
+   registry by `registry_ref.registry_id` from
    fixtures/registries/<registry_id>.json. Discovery-driven: a new
    snapshot or tenant is gated automatically once its registry copy is
    committed, and a snapshot whose registry copy is MISSING fails the
@@ -20,7 +21,11 @@
             [babashka.process :as p]
             [cheshire.core :as json]))
 
-(def ^:private snapshot-dirs ["fixtures/baseline" "fixtures/experiments"])
+(def ^:private snapshot-dirs
+  ["fixtures"
+   "fixtures/baseline"
+   "fixtures/experiments"
+   "fixtures/miniforge-etl/variants"])
 (def ^:private registry-dir "fixtures/registries")
 
 (defn- registry-path

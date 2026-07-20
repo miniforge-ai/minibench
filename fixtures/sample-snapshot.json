@@ -22,9 +22,21 @@
       "evidence_refs": [
         {
           "id": "ev-sample-0001",
-          "source_role": "supervisory-projection",
+          "source_role": "workflow-run",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "quote": "synthetic example: workflow run wf-sample-0001 executing against one compiled machine"
+        },
+        {
+          "id": "ev-sample-0002",
+          "source_role": "machine-snapshot",
           "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
           "quote": "synthetic example: single compiled execution machine present"
+        },
+        {
+          "id": "ev-sample-0003",
+          "source_role": "supervisory-projection",
+          "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+          "quote": "synthetic example: UI lifecycle fields consistent with machine state"
         }
       ],
       "findings": [],
@@ -46,7 +58,7 @@
       },
       "evidence_refs": [
         {
-          "id": "ev-sample-0002",
+          "id": "ev-sample-0004",
           "source_role": "evidence-bundle",
           "hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
           "quote": "synthetic example: semantic-validation phase missing from bundle"
