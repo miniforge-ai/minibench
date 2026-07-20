@@ -9,7 +9,11 @@
 
 pub const USAGE: &str = concat!(
     "usage: minibench <compare <dir> [registry.json] | ",
-    "summarize <file.json> | diff <baseline-dir> <current-dir>>"
+    "summarize <file.json> | ",
+    "diff <baseline-dir> <current-dir> [--corrections <dir>] | ",
+    "correct <corrections-dir> --experiment <id> --variant <label> ",
+    "--state-var <id> --status <status> --rationale <why> --by <who> ",
+    "[--score <n>] [--snapshot-id <id>]>"
 );
 pub const ERROR_PREFIX: &str = "error:";
 pub const WARNING_PREFIX: &str = "warning:";
@@ -20,6 +24,29 @@ pub const NO_REGRESSIONS: &str = "no regressions vs baseline";
 pub const REGRESSIONS_HEADER: &str = "regressions:";
 /// Exit code when `diff` finds regressions — non-zero so CI fails the build.
 pub const REGRESSION_EXIT_CODE: u8 = 3;
+
+// correction loop (correct subcommand + corrections-aware diff)
+pub const ARG_CORRECTIONS: &str = "--corrections";
+pub const ARG_EXPERIMENT: &str = "--experiment";
+pub const ARG_VARIANT: &str = "--variant";
+pub const ARG_STATE_VAR: &str = "--state-var";
+pub const ARG_STATUS: &str = "--status";
+pub const ARG_SCORE: &str = "--score";
+pub const ARG_RATIONALE: &str = "--rationale";
+pub const ARG_BY: &str = "--by";
+pub const ARG_SNAPSHOT_ID: &str = "--snapshot-id";
+pub const NO_CORRECTIONS_FOUND: &str = "no *.json corrections found in";
+pub const CORRECTION_RECORDED: &str = "recorded correction:";
+pub const CORRECTION_APPLIED: &str = "corrected expectation applied:";
+pub const STALE_CORRECTION: &str = "stale correction matches no baseline or current cell:";
+pub const CORRECTED_MARK: &str = "(corrected)";
+pub const INVALID_STATUS: &str =
+    "invalid status (expected pass|warn|fail|blocked|not_applicable|unknown):";
+pub const INVALID_SCORE: &str = "invalid score:";
+pub const UNKNOWN_ARGUMENT: &str = "unknown argument:";
+pub const MISSING_ARGUMENT_VALUE: &str = "missing value for";
+pub const MISSING_REQUIRED_ARGUMENT: &str = "missing required argument:";
+pub const TIMESTAMP_FORMAT_FAILED: &str = "could not format the current time as RFC 3339:";
 
 // compare matrix
 pub const EXPERIMENT_PREFIX: &str = "experiment:";

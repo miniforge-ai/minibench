@@ -6,18 +6,22 @@
 //! `minibench compare <dir>` — load every `*.json` workbench snapshot in
 //! a directory, lay them out as a run matrix (state variables × variants),
 //! and print it, marking the rows where the variants diverge.
-//! `minibench summarize <file>` — print one snapshot's roll-up. This is the
-//! terminal view of the permutation harness; the Swift shell renders the
-//! same `ComparisonMatrix` later.
+//! `minibench summarize <file>` — print one snapshot's roll-up.
+//! `minibench diff` — regression gate vs the frozen baseline, optionally
+//! judging human-corrected cells against their recorded expectation.
+//! `minibench correct` — record one human correction as a JSON file.
+//! This is the terminal view of the permutation harness; the Swift shell
+//! renders the same `ComparisonMatrix` later.
 
 mod strings;
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use minibench_kernel::{
-    CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, RegressionReport, SpreadSignal,
-    compare, compare_with_registry, diff, summarize,
+    CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, CorrectedDiffReport,
+    CorrectionKey, CorrectionSet, CorrectionV1, RegressionReport, SpreadSignal, compare,
+    compare_with_registry, diff, diff_with_corrections, summarize,
 };
 use workbench_contract::{StateStatus, StateVarRegistry, WorkbenchSnapshotV1};
 
@@ -32,11 +36,29 @@ fn main() -> ExitCode {
             Some(file) => run_summarize(Path::new(file)),
             None => usage(),
         },
-        Some("diff") => match (args.get(1), args.get(2)) {
-            (Some(baseline), Some(current)) => run_diff(Path::new(baseline), Path::new(current)),
+        Some("diff") => match (args.get(1), args.get(2), corrections_dir(&args[1..])) {
+            (Some(baseline), Some(current), Ok(corrections)) => run_diff(
+                Path::new(baseline),
+                Path::new(current),
+                corrections.as_deref(),
+            ),
             _ => usage(),
         },
+        Some("correct") => run_correct(&args[1..]),
         _ => usage(),
+    }
+}
+
+/// Extract an optional `--corrections <dir>` from the arguments after
+/// `diff <baseline> <current>`; anything else trailing is a usage error.
+fn corrections_dir(args: &[String]) -> Result<Option<PathBuf>, ()> {
+    match args.get(2).map(String::as_str) {
+        None => Ok(None),
+        Some(flag) if flag == strings::ARG_CORRECTIONS => match (args.get(3), args.get(4)) {
+            (Some(dir), None) => Ok(Some(PathBuf::from(dir))),
+            _ => Err(()),
+        },
+        Some(_) => Err(()),
     }
 }
 
@@ -119,13 +141,16 @@ fn run_compare(dir: &Path, registry_path: Option<&Path>) -> ExitCode {
     ExitCode::SUCCESS
 }
 
-/// `minibench diff <baseline-dir> <current-dir>` — report every state
-/// variable that regressed vs the baseline (status worse or score dropped)
-/// and exit non-zero when any did, so CI can fail the build. This closes the
-/// loop: the harness can say a run is *worse*, not merely *different*. Both
-/// directories must hold snapshots — an empty one is an error, not a clean
-/// run, so a wrong path or missing artifacts can't make the gate vacuous.
-fn run_diff(baseline_dir: &Path, current_dir: &Path) -> ExitCode {
+/// `minibench diff <baseline-dir> <current-dir> [--corrections <dir>]` —
+/// report every state variable that regressed vs the baseline (status
+/// worse or score dropped) and exit non-zero when any did, so CI can fail
+/// the build. With `--corrections`, human-corrected cells are judged
+/// against their recorded expectation instead of the raw baseline. This
+/// closes the loop: the harness can say a run is *worse*, not merely
+/// *different*. Both directories must hold snapshots — an empty one is an
+/// error, not a clean run, so a wrong path or missing artifacts can't
+/// make the gate vacuous. The same holds for an explicit corrections dir.
+fn run_diff(baseline_dir: &Path, current_dir: &Path, corrections_dir: Option<&Path>) -> ExitCode {
     let baseline = match load_nonempty(baseline_dir) {
         Ok(snapshots) => snapshots,
         Err(code) => return code,
@@ -135,9 +160,26 @@ fn run_diff(baseline_dir: &Path, current_dir: &Path) -> ExitCode {
         Err(code) => return code,
     };
 
-    let report = diff(&baseline, &current);
-    print_regressions(&report);
-    if report.is_clean() {
+    let clean = match corrections_dir {
+        None => {
+            let report = diff(&baseline, &current);
+            print_regressions(&report);
+            report.is_clean()
+        }
+        Some(dir) => {
+            let corrections = match load_corrections(dir) {
+                Ok(corrections) => corrections,
+                Err(message) => {
+                    eprintln!("{} {message}", strings::ERROR_PREFIX);
+                    return ExitCode::FAILURE;
+                }
+            };
+            let report = diff_with_corrections(&baseline, &current, &corrections);
+            print_corrected_report(&report);
+            report.is_clean()
+        }
+    };
+    if clean {
         ExitCode::SUCCESS
     } else {
         ExitCode::from(strings::REGRESSION_EXIT_CODE)
@@ -182,6 +224,224 @@ fn print_regressions(report: &RegressionReport) {
             regression.current_score,
         );
     }
+}
+
+fn print_corrected_report(report: &CorrectedDiffReport) {
+    for stale in &report.stale {
+        println!(
+            "{} {} {stale}",
+            strings::WARNING_PREFIX,
+            strings::STALE_CORRECTION
+        );
+    }
+    for applied in &report.applied {
+        println!("{} {applied}", strings::CORRECTION_APPLIED);
+    }
+    if report.is_clean() {
+        println!("{}", strings::NO_REGRESSIONS);
+        return;
+    }
+    println!(
+        "{} {}",
+        strings::REGRESSIONS_HEADER,
+        report.regressions.len()
+    );
+    for regression in &report.regressions {
+        let expected_score = regression
+            .expected_score
+            .map(|score| format!("{score:.2}"))
+            .unwrap_or_else(|| strings::ABSENT_CELL.to_string());
+        let corrected_mark = if regression.corrected {
+            format!(" {}", strings::CORRECTED_MARK)
+        } else {
+            String::new()
+        };
+        println!(
+            "  {} [{}] {:<34} {} {} -> {} {:.2}{}",
+            regression.experiment_id,
+            regression.variant,
+            regression.state_var_id,
+            status_str(regression.expected_status),
+            expected_score,
+            status_str(regression.current_status),
+            regression.current_score,
+            corrected_mark,
+        );
+    }
+}
+
+/// `minibench correct <corrections-dir> --experiment … --variant …
+/// --state-var … --status … --rationale … --by … [--score …]
+/// [--snapshot-id …]` — record one human correction as a JSON file whose
+/// name derives from the cell key, so re-correcting the same cell
+/// overwrites the previous record instead of accumulating duplicates.
+fn run_correct(args: &[String]) -> ExitCode {
+    let correction = match parse_correct_args(args) {
+        Ok(parsed) => parsed,
+        Err(None) => return usage(),
+        Err(Some(message)) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            return ExitCode::FAILURE;
+        }
+    };
+    let (dir, record) = correction;
+    if let Err(err) = record.validate() {
+        eprintln!("{} {err}", strings::ERROR_PREFIX);
+        return ExitCode::FAILURE;
+    }
+    match write_correction(&dir, &record) {
+        Ok(path) => {
+            println!("{} {}", strings::CORRECTION_RECORDED, path.display());
+            println!(
+                "  {} {} {}",
+                record.key(),
+                status_str(record.expected_status),
+                record
+                    .expected_score
+                    .map(|score| format!("{score:.2}"))
+                    .unwrap_or_else(|| strings::ABSENT_CELL.to_string()),
+            );
+            ExitCode::SUCCESS
+        }
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Parse `correct` arguments. `Err(None)` is a usage error (print usage);
+/// `Err(Some(message))` is a diagnosable input error.
+fn parse_correct_args(args: &[String]) -> Result<(PathBuf, CorrectionV1), Option<String>> {
+    let Some(dir) = args.first() else {
+        return Err(None);
+    };
+    let mut experiment_id = None;
+    let mut variant_label = None;
+    let mut state_var_id = None;
+    let mut status = None;
+    let mut score = None;
+    let mut rationale = None;
+    let mut corrected_by = None;
+    let mut snapshot_id = None;
+
+    let mut rest = args[1..].iter();
+    while let Some(flag) = rest.next() {
+        let value = rest
+            .next()
+            .ok_or_else(|| Some(format!("{} {flag}", strings::MISSING_ARGUMENT_VALUE)))?
+            .clone();
+        match flag.as_str() {
+            strings::ARG_EXPERIMENT => experiment_id = Some(value),
+            strings::ARG_VARIANT => variant_label = Some(value),
+            strings::ARG_STATE_VAR => state_var_id = Some(value),
+            strings::ARG_STATUS => status = Some(parse_status(&value)?),
+            strings::ARG_SCORE => {
+                score = Some(
+                    value
+                        .parse::<f64>()
+                        .map_err(|_| Some(format!("{} {value}", strings::INVALID_SCORE)))?,
+                );
+            }
+            strings::ARG_RATIONALE => rationale = Some(value),
+            strings::ARG_BY => corrected_by = Some(value),
+            strings::ARG_SNAPSHOT_ID => snapshot_id = Some(value),
+            _ => return Err(Some(format!("{} {flag}", strings::UNKNOWN_ARGUMENT))),
+        }
+    }
+
+    let record = CorrectionV1 {
+        experiment_id: required(experiment_id, strings::ARG_EXPERIMENT)?,
+        variant_label: required(variant_label, strings::ARG_VARIANT)?,
+        state_var_id: required(state_var_id, strings::ARG_STATE_VAR)?,
+        expected_status: required(status, strings::ARG_STATUS)?,
+        expected_score: score,
+        rationale: required(rationale, strings::ARG_RATIONALE)?,
+        corrected_by: required(corrected_by, strings::ARG_BY)?,
+        corrected_at: now_rfc3339()?,
+        snapshot_id,
+    };
+    Ok((PathBuf::from(dir), record))
+}
+
+fn required<T>(value: Option<T>, flag: &str) -> Result<T, Option<String>> {
+    value.ok_or_else(|| Some(format!("{} {flag}", strings::MISSING_REQUIRED_ARGUMENT)))
+}
+
+/// Parse a status through the contract enum's wire form, so only the
+/// closed status vocabulary is accepted — never a raw string.
+fn parse_status(raw: &str) -> Result<StateStatus, Option<String>> {
+    serde_json::from_value(serde_json::Value::String(raw.to_string()))
+        .map_err(|_| Some(format!("{} {raw}", strings::INVALID_STATUS)))
+}
+
+fn now_rfc3339() -> Result<String, Option<String>> {
+    time::OffsetDateTime::now_utc()
+        .format(&time::format_description::well_known::Rfc3339)
+        .map_err(|err| Some(format!("{} {err}", strings::TIMESTAMP_FORMAT_FAILED)))
+}
+
+/// Deterministic file name for a correction: the sanitized cell key, so
+/// the same key always maps to the same file (overwrite, not duplicate).
+fn correction_file_name(key: &CorrectionKey) -> String {
+    format!(
+        "{}__{}__{}.json",
+        sanitize_component(&key.experiment_id),
+        sanitize_component(&key.variant_label),
+        sanitize_component(&key.state_var_id),
+    )
+}
+
+/// Keep filename-safe characters; everything else becomes `-`.
+fn sanitize_component(component: &str) -> String {
+    component
+        .chars()
+        .map(|ch| {
+            if ch.is_ascii_alphanumeric() || matches!(ch, '.' | '-' | '_') {
+                ch
+            } else {
+                '-'
+            }
+        })
+        .collect()
+}
+
+fn write_correction(dir: &Path, record: &CorrectionV1) -> Result<PathBuf, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    let path = dir.join(correction_file_name(&record.key()));
+    let json =
+        serde_json::to_string_pretty(record).map_err(|e| format!("{}: {e}", path.display()))?;
+    std::fs::write(&path, format!("{json}\n")).map_err(|e| format!("{}: {e}", path.display()))?;
+    Ok(path)
+}
+
+/// Load every correction in `dir` into a validated set. An empty
+/// directory is an error — an explicitly passed corrections dir that
+/// contributes nothing means a wrong path, not a clean overlay.
+fn load_corrections(dir: &Path) -> Result<CorrectionSet, String> {
+    let mut paths: Vec<_> = std::fs::read_dir(dir)
+        .map_err(|e| format!("{}: {e}", dir.display()))?
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("json"))
+        .collect();
+    paths.sort();
+    if paths.is_empty() {
+        return Err(format!(
+            "{} {}",
+            strings::NO_CORRECTIONS_FOUND,
+            dir.display()
+        ));
+    }
+
+    let mut corrections = Vec::with_capacity(paths.len());
+    for path in paths {
+        let bytes = std::fs::read(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let record: CorrectionV1 =
+            serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))?;
+        corrections.push(record);
+    }
+    CorrectionSet::new(corrections).map_err(|e| e.to_string())
 }
 
 fn read_snapshot(file: &Path) -> Result<WorkbenchSnapshotV1, String> {
@@ -370,5 +630,108 @@ fn print_matrix(matrix: &ComparisonMatrix) {
             let rule: Vec<String> = widths.iter().map(|w| "─".repeat(*w)).collect();
             println!("{}", rule.join("  "));
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_correction() -> CorrectionV1 {
+        CorrectionV1 {
+            experiment_id: "career.lens.acme-l4-eval".to_string(),
+            variant_label: "haiku+mechanical".to_string(),
+            state_var_id: "career.lens.report_grounded".to_string(),
+            expected_status: StateStatus::Fail,
+            expected_score: Some(0.40),
+            rationale: "accepted grounding floor after review".to_string(),
+            corrected_by: "reviewer@test".to_string(),
+            corrected_at: "2026-07-19T00:00:00Z".to_string(),
+            snapshot_id: Some("wb-haiku+mechanical".to_string()),
+        }
+    }
+
+    /// Fresh per-test directory under the OS temp dir, removed on drop.
+    struct TempCorrectionsDir(PathBuf);
+
+    impl TempCorrectionsDir {
+        fn new(label: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "minibench-corrections-{label}-{}",
+                std::process::id()
+            ));
+            let _ = std::fs::remove_dir_all(&dir);
+            Self(dir)
+        }
+    }
+
+    impl Drop for TempCorrectionsDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    #[test]
+    fn written_correction_round_trips_through_the_loader() {
+        let dir = TempCorrectionsDir::new("round-trip");
+        let record = sample_correction();
+
+        let path = write_correction(&dir.0, &record).expect("write correction");
+        let loaded = load_corrections(&dir.0).expect("load corrections");
+
+        assert_eq!(
+            loaded,
+            CorrectionSet::new(vec![record.clone()]).expect("valid record"),
+            "the loaded set equals the written record"
+        );
+        assert_eq!(
+            path.file_name().and_then(|name| name.to_str()),
+            Some(concat!(
+                "career.lens.acme-l4-eval__haiku-mechanical__",
+                "career.lens.report_grounded.json"
+            )),
+            "filename derives from the sanitized cell key"
+        );
+    }
+
+    #[test]
+    fn recorrecting_the_same_cell_overwrites_the_previous_file() {
+        let dir = TempCorrectionsDir::new("overwrite");
+        let first = sample_correction();
+        let mut second = sample_correction();
+        second.expected_score = Some(0.45);
+        second.rationale = "raised the accepted floor after re-review".to_string();
+
+        write_correction(&dir.0, &first).expect("write first");
+        write_correction(&dir.0, &second).expect("write second");
+
+        let files: Vec<_> = std::fs::read_dir(&dir.0)
+            .expect("read corrections dir")
+            .filter_map(Result::ok)
+            .collect();
+        assert_eq!(files.len(), 1, "same key maps to the same file");
+        let loaded = load_corrections(&dir.0).expect("load corrections");
+        assert_eq!(loaded.len(), 1);
+    }
+
+    #[test]
+    fn loader_refuses_an_empty_corrections_dir() {
+        let dir = TempCorrectionsDir::new("empty");
+        std::fs::create_dir_all(&dir.0).expect("create empty dir");
+
+        let err = load_corrections(&dir.0).expect_err("empty dir refused");
+
+        assert!(err.starts_with(strings::NO_CORRECTIONS_FOUND));
+    }
+
+    #[test]
+    fn parse_status_accepts_only_the_contract_vocabulary() {
+        assert_eq!(parse_status("pass"), Ok(StateStatus::Pass));
+        assert_eq!(
+            parse_status("not_applicable"),
+            Ok(StateStatus::NotApplicable)
+        );
+        assert!(parse_status("PASS").is_err());
+        assert!(parse_status("approved").is_err());
     }
 }
