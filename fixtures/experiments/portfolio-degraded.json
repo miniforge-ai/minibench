@@ -5,14 +5,14 @@
     "label" : "degraded",
     "model" : "risk-pipeline"
   },
-  "run_id" : "run-degraded",
-  "generated_at" : "2026-06-10T16:07:55.018068Z",
+  "run_id" : "run-degraded-20260720T065610Z",
+  "generated_at" : "2026-07-20T06:56:10.915437Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
     "canonicalization" : "json-c14n/1"
   },
-  "snapshot_id" : "wb-portfolio-degraded",
+  "snapshot_id" : "wb-portfolio-degraded-20260720T065610Z",
   "entities" : {
     "portfolio.readiness" : {
       "lens-count" : 2,
@@ -27,7 +27,11 @@
       "message" : "1 lens(es) insufficient"
     } ],
     "state_var_id" : "portfolio.lens.validation_readiness",
-    "evidence_refs" : [ ],
+    "evidence_refs" : [ {
+      "id" : "portfolio.lens-validation-readiness",
+      "source_role" : "lens-validation-readiness",
+      "quote" : "gate failed, 1/2 lenses ready"
+    } ],
     "value" : "insufficient",
     "gate_effect" : "marks_insufficient",
     "score_components" : {
@@ -38,12 +42,17 @@
     "product" : "portfolio",
     "status" : "fail",
     "score" : 0.5,
-    "evaluated_at" : "2026-06-10T16:07:55.018068Z",
+    "evaluated_at" : "2026-07-20T06:56:10.915437Z",
     "confidence" : 0.95
   }, {
     "findings" : [ ],
     "state_var_id" : "portfolio.data.fidelity_gate",
-    "evidence_refs" : [ ],
+    "evidence_refs" : [ {
+      "id" : "portfolio.source.readiness",
+      "source_role" : "source-provenance",
+      "quote" : "/Users/chris/ws/miniforge.ai/minibench/fixtures/inputs/portfolio-readiness-degraded.json",
+      "hash" : "sha256:225da174e33d91ebb05b42c7828294a460f8db2828a2e8efe01ac9def34ed9f0"
+    } ],
     "value" : false,
     "gate_effect" : "marks_low_confidence",
     "score_components" : {
@@ -54,11 +63,14 @@
     "product" : "portfolio",
     "status" : "warn",
     "score" : 0.75,
-    "evaluated_at" : "2026-06-10T16:07:55.018068Z",
+    "evaluated_at" : "2026-07-20T06:56:10.915437Z",
     "confidence" : 0.95
   } ],
   "registry_ref" : {
     "registry_id" : "portfolio-state-vars",
     "version" : "2026.06.06.1"
+  },
+  "metadata" : {
+    "emitter" : "portfolio-workbench-cli"
   }
 }

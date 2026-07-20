@@ -2106,10 +2106,13 @@ mod tests {
     #[test]
     fn validate_flags_below_min_count() {
         let snap = opus_snapshot();
+        // One more than the fixture carries, however many refs a regen
+        // emits.
+        let min_count = snap.evaluations[0].evidence_refs.len() + 1;
         let registry = registry_with_requirements(
             &snap,
             EvidenceRequirements {
-                min_count: Some(3),
+                min_count: Some(min_count as u32),
                 ..no_requirements()
             },
         );
@@ -2141,12 +2144,17 @@ mod tests {
     #[test]
     fn validate_matches_required_refs_against_source_role() {
         let snap = opus_snapshot();
-        // "LensVerdict" must match the fixture's kebab-case source role
-        // "lens-verdict"; "Claim" has no matching ref.
+        // "LensVerdict" and "Claim" must match the fixture's kebab-case
+        // source roles "lens-verdict" / "claim"; "EvidenceBundle" has no
+        // matching ref.
         let registry = registry_with_requirements(
             &snap,
             EvidenceRequirements {
-                required_refs: vec!["LensVerdict".to_string(), "Claim".to_string()],
+                required_refs: vec![
+                    "LensVerdict".to_string(),
+                    "Claim".to_string(),
+                    "EvidenceBundle".to_string(),
+                ],
                 ..no_requirements()
             },
         );
@@ -2158,7 +2166,7 @@ mod tests {
             vec![EvidenceViolationKind::MissingRequiredRef]
         );
         assert!(
-            report.violations[0].message.contains("Claim"),
+            report.violations[0].message.contains("EvidenceBundle"),
             "the unmatched entry is named"
         );
     }
@@ -2178,10 +2186,7 @@ mod tests {
 
         assert_eq!(
             violation_kinds(&report),
-            vec![
-                EvidenceViolationKind::MissingHash,
-                EvidenceViolationKind::MissingHash
-            ],
+            vec![EvidenceViolationKind::MissingHash; snap.evaluations[0].evidence_refs.len()],
             "one violation per hashless ref"
         );
 
@@ -2229,10 +2234,7 @@ mod tests {
 
         assert_eq!(
             violation_kinds(&report),
-            vec![
-                EvidenceViolationKind::MissingCreatedAt,
-                EvidenceViolationKind::MissingCreatedAt
-            ],
+            vec![EvidenceViolationKind::MissingCreatedAt; snap.evaluations[0].evidence_refs.len()],
             "an SLA without a timestamp is unverifiable, so strict"
         );
     }
@@ -2247,10 +2249,11 @@ mod tests {
                 ..no_requirements()
             },
         );
-        // The fixture evaluates at 2026-06-10T16:07:46Z; same-day refs
-        // are inside a 24h SLA.
+        // Refs stamped at the evaluation instant are inside any SLA,
+        // whatever timestamp a regen wrote into the fixture.
+        let evaluated_at = snap.evaluations[0].evaluated_at.clone();
         for evidence_ref in &mut snap.evaluations[0].evidence_refs {
-            evidence_ref.created_at = Some("2026-06-10T00:00:00Z".to_string());
+            evidence_ref.created_at = Some(evaluated_at.clone());
         }
         let report = validate(&snap, &registry).expect("matching registry");
         assert!(report.is_clean());

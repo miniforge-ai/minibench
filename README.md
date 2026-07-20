@@ -76,6 +76,28 @@ runs this on every PR and **fails on any regression**; to accept a new
 result, update the baseline. That closes the loop the workbench exists to
 close — it doesn't just measure, it gates.
 
+## Evidence validation gate
+
+`minibench validate` enforces the registry's declared
+`evidence_requirements` — no `pass` without evidence, required ref
+types present, hashes where demanded. `bb validate-gate` runs it over
+every committed snapshot in `fixtures/baseline/` + `fixtures/experiments/`,
+pairing each snapshot with `fixtures/registries/<registry_id>.json` by
+its own `registry_ref`; a snapshot whose registry copy is missing fails
+the gate rather than being skipped. CI runs this after the regression
+gate.
+
+```bash
+bb validate-gate      # minibench validate <snapshot> fixtures/registries/<id>.json, per snapshot
+```
+
+The registry copies under `fixtures/registries/` are pinned duplicates
+of the product repos' registries (career + portfolio from
+`workbench-contract/fixtures/`); `validate` verifies
+registry_id/version/product against each snapshot, so an upstream
+version bump fails loudly here instead of validating against a stale
+yardstick.
+
 ## Registry-aware compare
 
 `minibench compare` can take the registry that scored the snapshots. With it,

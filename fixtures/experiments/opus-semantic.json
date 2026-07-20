@@ -6,14 +6,14 @@
     "model" : "claude-opus-4-8",
     "method" : "semantic"
   },
-  "run_id" : "run-opus+semantic",
-  "generated_at" : "2026-06-10T16:07:46.111104Z",
+  "run_id" : "run-opus+semantic-20260720T065602Z",
+  "generated_at" : "2026-07-20T06:56:02.921257Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
     "canonicalization" : "json-c14n/1"
   },
-  "snapshot_id" : "wb-opus+semantic",
+  "snapshot_id" : "wb-opus+semantic-20260720T065602Z",
   "entities" : {
     "career.lens_report" : {
       "report/lens-id" : "acme-engineering",
@@ -34,6 +34,14 @@
       "id" : "career.lens-verdict.technical-execution.l4",
       "source_role" : "lens-verdict",
       "quote" : "verdict technical-execution/l4 evidence-confidence 0.85"
+    }, {
+      "id" : "claim.acme.pipeline-rollout",
+      "source_role" : "claim",
+      "quote" : "Led the phased rollout of the evaluation pipeline"
+    }, {
+      "id" : "claim.acme.incident-runbook",
+      "source_role" : "claim",
+      "quote" : "Authored the incident runbook adopted team-wide"
     } ],
     "value" : 0.88,
     "gate_effect" : "none",
@@ -45,11 +53,15 @@
     "product" : "career",
     "status" : "pass",
     "score" : 0.88,
-    "evaluated_at" : "2026-06-10T16:07:46.111104Z",
+    "evaluated_at" : "2026-07-20T06:56:02.921257Z",
     "confidence" : 0.94
   } ],
   "registry_ref" : {
     "registry_id" : "career-state-vars",
     "version" : "2026.06.06.1"
+  },
+  "metadata" : {
+    "emitter" : "career-workbench-cli",
+    "mode" : "lens"
   }
 }

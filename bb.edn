@@ -38,4 +38,9 @@
 
   regression-gate
   {:doc "Fail if any state variable regressed vs the committed baseline (status worse or score dropped). The CI loop-closing gate."
-   :task (shell "cargo run -q -p minibench-cli -- diff fixtures/baseline fixtures/experiments")}}}
+   :task (shell "cargo run -q -p minibench-cli -- diff fixtures/baseline fixtures/experiments")}
+
+  validate-gate
+  {:doc "Fail if any committed fixture snapshot's evidence refs fall short of its registry's evidence_requirements (minibench validate, exit 4), or a snapshot names a registry with no copy in fixtures/registries/."
+   :requires ([validate])
+   :task (validate/gate!)}}}

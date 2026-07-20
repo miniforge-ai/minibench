@@ -6,14 +6,14 @@
     "model" : "claude-haiku-4-5",
     "method" : "mechanical"
   },
-  "run_id" : "run-haiku+mechanical",
-  "generated_at" : "2026-06-10T16:07:49.186121Z",
+  "run_id" : "run-haiku+mechanical-20260720T065605Z",
+  "generated_at" : "2026-07-20T06:56:05.514629Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
     "canonicalization" : "json-c14n/1"
   },
-  "snapshot_id" : "wb-haiku+mechanical",
+  "snapshot_id" : "wb-haiku+mechanical-20260720T065605Z",
   "entities" : {
     "career.lens_report" : {
       "report/lens-id" : "acme-engineering",
@@ -37,6 +37,10 @@
       "id" : "career.lens-verdict.technical-execution.l3",
       "source_role" : "lens-verdict",
       "quote" : "verdict technical-execution/l3 evidence-confidence 0.35"
+    }, {
+      "id" : "claim.acme.pipeline-rollout",
+      "source_role" : "claim",
+      "quote" : "Led the phased rollout of the evaluation pipeline"
     } ],
     "value" : 0.43,
     "gate_effect" : "requires_repair",
@@ -48,11 +52,15 @@
     "product" : "career",
     "status" : "fail",
     "score" : 0.43,
-    "evaluated_at" : "2026-06-10T16:07:49.186121Z",
+    "evaluated_at" : "2026-07-20T06:56:05.514629Z",
     "confidence" : 0.72
   } ],
   "registry_ref" : {
     "registry_id" : "career-state-vars",
     "version" : "2026.06.06.1"
+  },
+  "metadata" : {
+    "emitter" : "career-workbench-cli",
+    "mode" : "lens"
   }
 }
