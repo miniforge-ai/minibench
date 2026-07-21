@@ -17,23 +17,54 @@
 //!
 //! Thin index per `standards/miniforge/languages/rust.mdc`: each bounded
 //! operation lives in its own stratified module; this file only wires
-//! the public surface.
+//! the public surface (pass-through delegation only, like a Polylith
+//! `interface`).
 
+mod checks;
 mod compare;
 mod evidence;
+mod provenance;
 mod regression;
 mod snapshot;
+mod stats;
 mod summary;
+mod violations;
 
-pub use compare::{
-    CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, ComparisonRow, SpreadSignal,
-    compare, compare_with_registry,
-};
-pub use evidence::{
-    EvidenceViolation, EvidenceViolationKind, ValidateError, ValidationReport, validate,
-};
+use workbench_contract::{StateVarRegistry, WorkbenchSnapshotV1};
+
+pub use compare::{CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, ComparisonRow};
+pub use evidence::{ValidateError, ValidationReport, validate};
 pub use regression::{Regression, RegressionReport, diff};
+pub use stats::SpreadSignal;
 pub use summary::{RunSummary, SummaryError, summarize, summarize_with_registry};
+pub use violations::{EvidenceViolation, EvidenceViolationKind};
+
+/// Lay out the snapshots of one experiment as a comparison matrix.
+/// Variant columns keep first-seen order; snapshots with the same
+/// experiment + label and distinct run ids are grouped as replicates.
+/// State-variable rows keep first-seen order across snapshots so the
+/// matrix is stable.
+///
+/// # Errors
+///
+/// Returns [`CompareError`] when the snapshots are not comparable.
+pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, CompareError> {
+    compare::compare_inner(snapshots, None)
+}
+
+/// Registry-aware comparison that can flag same-status score spread as
+/// meaningful when it crosses the state variable's threshold-band width.
+///
+/// # Errors
+///
+/// Returns [`CompareError`] when the snapshots are not comparable or the
+/// registry does not match them.
+pub fn compare_with_registry(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: &StateVarRegistry,
+) -> Result<ComparisonMatrix, CompareError> {
+    compare::compare_inner(snapshots, Some(registry))
+}
 
 #[cfg(test)]
 mod tests;

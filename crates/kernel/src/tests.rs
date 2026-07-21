@@ -11,7 +11,7 @@ use workbench_contract::{
 };
 
 use super::*;
-use crate::compare::{PROVENANCE_KEY_EVALUATOR_VERSION, PROVENANCE_KEY_POLICY_HASH};
+use crate::provenance::{PROVENANCE_KEY_EVALUATOR_VERSION, PROVENANCE_KEY_POLICY_HASH};
 use crate::summary::{
     GATE_EFFECT_BLOCKS_TRANSITION, STATUS_KEY_FAIL, STATUS_KEY_PASS, STATUS_KEY_WARN,
 };

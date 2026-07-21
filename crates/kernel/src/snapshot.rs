@@ -38,14 +38,14 @@ pub(crate) fn registry_key(registry: &StateVarRegistry) -> String {
     format!("{}@{}", registry.registry_id, registry.version)
 }
 
-// ------------------------------------------------------------------ Layer 1
-
 /// Why a supplied registry cannot vouch for a snapshot. Callers map
 /// this into their operation's own error type at the boundary.
 pub(crate) enum RegistryMismatch {
     Ref { expected: String, found: String },
     Product { expected: String, found: String },
 }
+
+// ------------------------------------------------------------------ Layer 1
 
 /// Guard that a registry is the one that scored the snapshot: the
 /// registry ref and product must both match. All registry-aware kernel

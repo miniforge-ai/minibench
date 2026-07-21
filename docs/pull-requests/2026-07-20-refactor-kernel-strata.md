@@ -59,6 +59,29 @@ Merges to main; no consumer changes needed.
 - miniforge-ai/stratum-lint#3 — the Rust linter this passes.
 - Next: miniforge-standards rule 236 referencing this crate as exemplar.
 
+## Round 2 — strict layer semantics
+
+stratum-lint-rs gained SL008 (same-layer fn calls forbidden — a caller
+sits strictly above its callee) and SL009 (types above their justified
+layer). The kernel had 11 findings under the new law; restratified:
+
+- `stats.rs` — replicate statistics extracted from `compare.rs`
+  (`SpreadSignal` moved with them; `standard_deviation` sits a layer
+  above `mean`).
+- `provenance.rs` — provenance extraction chain extracted, with its own
+  `ProvenanceMismatch` mapped into `CompareError` at the boundary
+  (keeps the module DAG downward).
+- `compare`/`compare_with_registry` are now pass-through delegations in
+  the `lib.rs` index (Polylith-interface style) over `compare_inner` —
+  a same-layer wrapper pair otherwise.
+- `violations.rs` + `checks.rs` — evidence vocabulary and per-rule
+  checks extracted; the freshness chain now spans honest layers.
+- `RegistryMismatch` moved to Layer 0 (SL009); one closure param
+  renamed (`spread` shadowed the fn — false positive caught by SL008).
+
+Public API still byte-compatible; all 38 behavior tests unmodified and
+green; clippy clean; strict lint exit 0 across all nine modules.
+
 ## Checklist
 
 - [x] Public API byte-compatible (`pub use` re-exports, consumers untouched)

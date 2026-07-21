@@ -11,55 +11,27 @@
 // variables, columns are variants, cells are score/status. Per row it
 // flags where the variants actually diverge — that's the signal the
 // shell highlights so you can see which config changed which outcome.
-use std::cmp::Reverse;
 use std::collections::btree_map::Entry;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use workbench_contract::{
     StateEvaluation, StateStatus, StateVarRegistry, StateVariable, WorkbenchSnapshotV1,
 };
 
+use crate::provenance::{
+    EVALUATOR_PROVENANCE_KEYS, POLICY_PROVENANCE_KEYS, ProvenanceMismatch, validate_provenance_key,
+};
 use crate::snapshot::{
     RegistryMismatch, check_registry, experiment_id, registry_ref_key, variant_label,
 };
+use crate::stats::{
+    SCORE_SPREAD_EPSILON, SpreadSignal, majority_status, mean, meaningful_score_spread_threshold,
+    spread, spread_signal, standard_deviation,
+};
 
 // ------------------------------------------------------------------ Layer 0
-
-/// Standard deviation is only meaningful once at least two replicate
-/// observations exist.
-const MIN_REPLICATES_FOR_SPREAD: usize = 2;
-/// Float tolerance for classifying score-spread signals.
-const SCORE_SPREAD_EPSILON: f64 = 1e-9;
-/// Stable ordering used only to make tied status votes deterministic.
-const STATE_STATUS_ORDER: &[StateStatus] = &[
-    StateStatus::Pass,
-    StateStatus::Warn,
-    StateStatus::Fail,
-    StateStatus::Blocked,
-    StateStatus::NotApplicable,
-    StateStatus::Unknown,
-];
-/// Snapshot/variant provenance key for a policy content hash.
-pub(crate) const PROVENANCE_KEY_POLICY_HASH: &str = "policy_hash";
-/// Snapshot/variant provenance key for a policy version id.
-const PROVENANCE_KEY_POLICY_VERSION: &str = "policy_version";
-/// Snapshot/variant provenance key for an evaluator implementation hash.
-const PROVENANCE_KEY_EVALUATOR_HASH: &str = "evaluator_hash";
-/// Snapshot/variant provenance key for an evaluator version id.
-pub(crate) const PROVENANCE_KEY_EVALUATOR_VERSION: &str = "evaluator_version";
-/// Metadata object that may hold provenance fields.
-const METADATA_PROVENANCE_FIELD: &str = "provenance";
-/// Provenance fields that prove policy comparability when uniform.
-const POLICY_PROVENANCE_KEYS: &[&str] =
-    &[PROVENANCE_KEY_POLICY_HASH, PROVENANCE_KEY_POLICY_VERSION];
-/// Provenance fields that prove evaluator comparability when uniform.
-const EVALUATOR_PROVENANCE_KEYS: &[&str] = &[
-    PROVENANCE_KEY_EVALUATOR_HASH,
-    PROVENANCE_KEY_EVALUATOR_VERSION,
-];
 
 /// One variant's result for one state variable.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -110,15 +82,6 @@ pub struct ComparisonRow {
     pub coverage_divergence: bool,
     /// True when at least one variant has no unique majority status.
     pub status_unstable: bool,
-}
-
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(rename_all = "snake_case")]
-pub enum SpreadSignal {
-    NoSpread,
-    SingleRun,
-    BetweenExceedsWithin,
-    WithinMatchesBetween,
 }
 
 /// A run matrix for one experiment: state variables × variants.
@@ -255,6 +218,18 @@ impl fmt::Display for CompareError {
 
 impl std::error::Error for CompareError {}
 
+impl CompareError {
+    /// Map a provenance uniformity failure into the comparison error.
+    fn from_provenance_mismatch(mismatch: ProvenanceMismatch) -> Self {
+        Self::MixedProvenance {
+            key: mismatch.key,
+            expected: mismatch.expected,
+            found: mismatch.found,
+            snapshot_id: mismatch.snapshot_id,
+        }
+    }
+}
+
 struct CompareContext {
     experiment_id: String,
     warnings: Vec<CompareWarning>,
@@ -268,174 +243,7 @@ fn normalized_source_hashes(snapshot: &WorkbenchSnapshotV1) -> Option<Vec<String
     })
 }
 
-fn metadata_provenance_value<'a>(metadata: Option<&'a Value>, key: &str) -> Option<&'a str> {
-    metadata
-        .and_then(|value| value.get(key).and_then(Value::as_str))
-        .or_else(|| {
-            metadata.and_then(|value| {
-                value
-                    .get(METADATA_PROVENANCE_FIELD)
-                    .and_then(|provenance| provenance.get(key))
-                    .and_then(Value::as_str)
-            })
-        })
-}
-
-fn provenance_value(snapshot: &WorkbenchSnapshotV1, key: &str) -> Option<String> {
-    snapshot
-        .variant
-        .as_ref()
-        .and_then(|variant| variant.axes.get(key).cloned())
-        .or_else(|| metadata_provenance_value(snapshot.metadata.as_ref(), key).map(str::to_string))
-}
-
-fn mean(values: &[f64]) -> f64 {
-    values.iter().sum::<f64>() / values.len() as f64
-}
-
-fn spread(values: &[f64]) -> f64 {
-    if values.len() < MIN_REPLICATES_FOR_SPREAD {
-        return 0.0;
-    }
-    let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0);
-    let max = values.iter().copied().reduce(f64::max).unwrap_or(0.0);
-    max - min
-}
-
-fn spread_signal(
-    score_spread: f64,
-    within_score_spread: f64,
-    row_present_counts: &[usize],
-) -> SpreadSignal {
-    if score_spread <= SCORE_SPREAD_EPSILON && within_score_spread <= SCORE_SPREAD_EPSILON {
-        return SpreadSignal::NoSpread;
-    }
-    if row_present_counts
-        .iter()
-        .all(|present_count| *present_count < MIN_REPLICATES_FOR_SPREAD)
-    {
-        return SpreadSignal::SingleRun;
-    }
-    if within_score_spread + SCORE_SPREAD_EPSILON >= score_spread {
-        SpreadSignal::WithinMatchesBetween
-    } else {
-        SpreadSignal::BetweenExceedsWithin
-    }
-}
-
-fn meaningful_score_spread_threshold(state_var: &StateVariable) -> Option<f64> {
-    let mut thresholds: Vec<f64> = state_var
-        .thresholds
-        .values()
-        .copied()
-        .filter(|threshold| threshold.is_finite())
-        .collect();
-    thresholds.sort_by(f64::total_cmp);
-    thresholds
-        .windows(2)
-        .map(|window| window[1] - window[0])
-        .filter(|spread| *spread > SCORE_SPREAD_EPSILON)
-        .reduce(f64::min)
-}
-
-fn standard_deviation(values: &[f64]) -> f64 {
-    if values.len() < MIN_REPLICATES_FOR_SPREAD {
-        return 0.0;
-    }
-    let avg = mean(values);
-    let variance = values
-        .iter()
-        .map(|value| {
-            let delta = value - avg;
-            delta * delta
-        })
-        .sum::<f64>()
-        / values.len() as f64;
-    variance.sqrt()
-}
-
-fn majority_status(statuses: &[StateStatus]) -> (StateStatus, bool) {
-    let mut ranked: Vec<(StateStatus, usize)> = STATE_STATUS_ORDER
-        .iter()
-        .map(|status| {
-            (
-                *status,
-                statuses
-                    .iter()
-                    .filter(|candidate| *candidate == status)
-                    .count(),
-            )
-        })
-        .filter(|(_, count)| *count > 0)
-        .collect();
-    ranked.sort_by_key(|(_, count)| Reverse(*count));
-
-    let Some((status, count)) = ranked.first() else {
-        return (StateStatus::Unknown, true);
-    };
-    let tied = ranked
-        .get(1)
-        .is_some_and(|(_, next_count)| next_count == count);
-    if tied {
-        (StateStatus::Unknown, true)
-    } else {
-        (*status, false)
-    }
-}
-
 // ------------------------------------------------------------------ Layer 1
-
-fn validate_provenance_key(
-    snapshots: &[WorkbenchSnapshotV1],
-    key: &str,
-) -> Result<bool, CompareError> {
-    let values: Vec<_> = snapshots
-        .iter()
-        .map(|snapshot| (snapshot, provenance_value(snapshot, key)))
-        .collect();
-    if values.iter().all(|(_, value)| value.is_none()) {
-        return Ok(false);
-    }
-
-    let expected = values.iter().find_map(|(_, value)| value.as_ref()).cloned();
-    let Some(expected) = expected else {
-        return Ok(false);
-    };
-
-    for (snapshot, value) in values {
-        match value {
-            Some(value) if value == expected => {}
-            Some(value) => {
-                return Err(CompareError::MixedProvenance {
-                    key: key.to_string(),
-                    expected,
-                    found: value,
-                    snapshot_id: snapshot.snapshot_id.clone(),
-                });
-            }
-            None => {
-                return Err(CompareError::MixedProvenance {
-                    key: key.to_string(),
-                    expected,
-                    found: "<missing>".to_string(),
-                    snapshot_id: snapshot.snapshot_id.clone(),
-                });
-            }
-        }
-    }
-    Ok(true)
-}
-
-fn validate_provenance_group(
-    snapshots: &[WorkbenchSnapshotV1],
-    keys: &[&str],
-) -> Result<bool, CompareError> {
-    let mut has_group_provenance = false;
-    for key in keys {
-        has_group_provenance |= validate_provenance_key(snapshots, key)?;
-    }
-    Ok(has_group_provenance)
-}
 
 fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareContext, CompareError> {
     let Some(first) = snapshots.first() else {
@@ -511,14 +319,23 @@ fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareConte
         }
     }
 
+    let provenance_group = |keys: &[&str]| -> Result<bool, CompareError> {
+        let mut has_group_provenance = false;
+        for key in keys {
+            has_group_provenance |= validate_provenance_key(snapshots, key)
+                .map_err(CompareError::from_provenance_mismatch)?;
+        }
+        Ok(has_group_provenance)
+    };
+
     let mut warnings = Vec::new();
     if missing_source_hashes {
         warnings.push(CompareWarning::MissingSourceHashes);
     }
-    if !validate_provenance_group(snapshots, POLICY_PROVENANCE_KEYS)? {
+    if !provenance_group(POLICY_PROVENANCE_KEYS)? {
         warnings.push(CompareWarning::MissingPolicyProvenance);
     }
-    if !validate_provenance_group(snapshots, EVALUATOR_PROVENANCE_KEYS)? {
+    if !provenance_group(EVALUATOR_PROVENANCE_KEYS)? {
         warnings.push(CompareWarning::MissingEvaluatorProvenance);
     }
 
@@ -584,7 +401,7 @@ fn validate_comparison_registry(
 
 // ------------------------------------------------------------------ Layer 2
 
-fn compare_inner(
+pub(crate) fn compare_inner(
     snapshots: &[WorkbenchSnapshotV1],
     registry: Option<&StateVarRegistry>,
 ) -> Result<ComparisonMatrix, CompareError> {
@@ -720,22 +537,4 @@ fn compare_inner(
         rows,
         warnings: ctx.warnings,
     })
-}
-
-/// Lay out the snapshots of one experiment as a comparison matrix.
-/// Variant columns keep first-seen order; snapshots with the same
-/// experiment + label and distinct run ids are grouped as replicates.
-/// State-variable rows keep first-seen order across snapshots so the
-/// matrix is stable.
-pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, CompareError> {
-    compare_inner(snapshots, None)
-}
-
-/// Registry-aware comparison that can flag same-status score spread as
-/// meaningful when it crosses the state variable's threshold-band width.
-pub fn compare_with_registry(
-    snapshots: &[WorkbenchSnapshotV1],
-    registry: &StateVarRegistry,
-) -> Result<ComparisonMatrix, CompareError> {
-    compare_inner(snapshots, Some(registry))
 }
