@@ -1073,7 +1073,11 @@ const SECONDS_PER_HOUR: i128 = 3_600;
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceViolationKind {
     /// The state variable declares evidence requirements but the
-    /// evaluation carries zero evidence refs.
+    /// evaluation carries zero evidence refs. `not_applicable`
+    /// evaluations are exempt: the requirements describe what a SCORED
+    /// evaluation must cite, and a variable that does not apply has
+    /// nothing to evidence — demanding refs there would push adapters
+    /// toward fabricating them.
     MissingEvidence,
     /// The evaluation reports `pass` with zero evidence refs — the
     /// "no high confidence without evidence" invariant, enforced even
@@ -1227,7 +1231,8 @@ fn validate_evaluation(
                 "status pass with no evidence refs".to_string(),
             ));
         }
-        if declares_requirements(requirements) {
+        let makes_claim = evaluation.status != StateStatus::NotApplicable;
+        if makes_claim && declares_requirements(requirements) {
             violations.push(violation(
                 evaluation,
                 EvidenceViolationKind::MissingEvidence,
@@ -1245,10 +1250,11 @@ fn validate_evaluation(
 
 /// True when the state variable declares ANY evidence requirement. A
 /// `must_include_*` of `Some(false)` explicitly waives that rule, so it
-/// does not count as a declared requirement.
+/// does not count as a declared requirement; likewise `min_count` of
+/// `Some(0)` — an explicit "zero refs acceptable", not a demand.
 fn declares_requirements(requirements: &EvidenceRequirements) -> bool {
     !requirements.required_refs.is_empty()
-        || requirements.min_count.is_some()
+        || requirements.min_count.is_some_and(|count| count > 0)
         || requirements.must_include_hash == Some(true)
         || requirements.must_include_source_role == Some(true)
         || requirements.freshness_sla_hours.is_some()
@@ -2307,6 +2313,91 @@ mod tests {
             violation_kinds(&report),
             vec![EvidenceViolationKind::MissingEvidence],
             "zero refs collapses to one invariant violation, not per-rule noise"
+        );
+    }
+
+    #[test]
+    fn validate_exempts_not_applicable_with_zero_refs() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                required_refs: vec!["DataQualityReport".to_string()],
+                min_count: Some(0),
+                must_include_source_role: Some(true),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].status = StateStatus::NotApplicable;
+        snap.evaluations[0].evidence_refs.clear();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(
+            report.is_clean(),
+            "a variable that does not apply has nothing to evidence"
+        );
+    }
+
+    #[test]
+    fn validate_checks_refs_carried_by_not_applicable_evaluations() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                must_include_hash: Some(true),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].status = StateStatus::NotApplicable;
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MissingHash; snap.evaluations[0].evidence_refs.len()],
+            "refs present on a not_applicable evaluation still get per-rule checks"
+        );
+    }
+
+    #[test]
+    fn validate_treats_min_count_zero_as_waiver() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                min_count: Some(0),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].status = StateStatus::Fail;
+        snap.evaluations[0].evidence_refs.clear();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(report.is_clean(), "Some(0) waives, not requires");
+    }
+
+    #[test]
+    fn validate_min_count_zero_does_not_waive_required_refs_for_scored_statuses() {
+        let mut snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                required_refs: vec!["DataQualityReport".to_string()],
+                min_count: Some(0),
+                ..no_requirements()
+            },
+        );
+        snap.evaluations[0].status = StateStatus::Fail;
+        snap.evaluations[0].evidence_refs.clear();
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MissingEvidence],
+            "a scored evaluation still owes its required ref types"
         );
     }
 

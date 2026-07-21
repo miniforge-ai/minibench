@@ -47,13 +47,14 @@ cargo run -p minibench-cli -- compare fixtures/experiments
 
 `fixtures/sample-snapshot.json` remains the hand-written Miniforge
 orchestration example. The product-owned Miniforge ETL adapter now supplies a
-real baseline/candidate pair and its registry under `fixtures/miniforge-etl/`.
+real baseline/candidate pair under `fixtures/miniforge-etl/variants/`, with
+its registry pinned at `fixtures/registries/miniforge-etl-state-vars.json`.
 The pair differs at exactly one resolved-run factor (`:pipeline/mode`) and is
 checked by the kernel integration suite.
 
 ```bash
 cargo run -p minibench-cli -- compare \
-  fixtures/miniforge-etl/variants fixtures/miniforge-etl/registry.json
+  fixtures/miniforge-etl/variants fixtures/registries/miniforge-etl-state-vars.json
 ```
 
 ## Shell (macOS)
@@ -88,20 +89,26 @@ close — it doesn't just measure, it gates.
 
 `minibench validate` enforces the registry's declared
 `evidence_requirements` — no `pass` without evidence, required ref
-types present, hashes where demanded. `bb validate-gate` runs it over
-every committed snapshot in `fixtures/baseline/` + `fixtures/experiments/`,
-pairing each snapshot with `fixtures/registries/<registry_id>.json` by
-its own `registry_ref`; a snapshot whose registry copy is missing fails
-the gate rather than being skipped. CI runs this after the regression
-gate.
+types present, hashes where demanded. Two explicit outs:
+`not_applicable` evaluations may carry zero refs (a variable that does
+not apply has nothing to evidence — the requirements describe what a
+scored evaluation must cite), and a registry `min_count` of `0` is a
+waiver, not a demand, mirroring `must_include_*: false`. `bb
+validate-gate` runs the op over every committed snapshot —
+`fixtures/*.json`, `fixtures/baseline/`, `fixtures/experiments/`, and
+`fixtures/miniforge-etl/variants/` — pairing each snapshot with
+`fixtures/registries/<registry_id>.json` by its own `registry_ref`; a
+snapshot whose registry copy is missing fails the gate rather than
+being skipped. CI runs this after the regression gate.
 
 ```bash
 bb validate-gate      # minibench validate <snapshot> fixtures/registries/<id>.json, per snapshot
 ```
 
 The registry copies under `fixtures/registries/` are pinned duplicates
-of the product repos' registries (career + portfolio from
-`workbench-contract/fixtures/`); `validate` verifies
+of the product repos' registries (career, portfolio, and miniforge from
+`workbench-contract/fixtures/`, plus the miniforge-etl registry the ETL
+adapter fixtures name); `validate` verifies
 registry_id/version/product against each snapshot, so an upstream
 version bump fails loudly here instead of validating against a stale
 yardstick.
