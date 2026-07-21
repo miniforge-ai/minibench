@@ -6,14 +6,23 @@
 ;; Synthetic, non-personal. Fed to the real career-workbench-adapter via
 ;; `bb workbench:snapshot`, run by `bb regen-fixtures`, to produce
 ;; fixtures/experiments/opus-semantic.json. High evidence-confidence ->
-;; grounding passes.
+;; grounding passes. Each verdict cites the synthetic portfolio claims
+;; backing it — the registry requires the grounding evaluation to ref
+;; both the verdicts AND the claims (career.lens.report_grounded
+;; required_refs LensVerdict + Claim).
 {:report/lens-id :acme-engineering
  :report/framework-id :acme-engineering
  :report/output-mode :clause-level
  :report/verdicts
  [{:verdict/dimension :technical-execution
    :verdict/level :l3
+   :verdict/claims
+   [{:claim/id "claim.acme.pipeline-rollout"
+     :claim/text "Led the phased rollout of the evaluation pipeline"}]
    :verdict/envelope {:envelope/evidence-confidence 0.9}}
   {:verdict/dimension :technical-execution
    :verdict/level :l4
+   :verdict/claims
+   [{:claim/id "claim.acme.incident-runbook"
+     :claim/text "Authored the incident runbook adopted team-wide"}]
    :verdict/envelope {:envelope/evidence-confidence 0.85}}]}
