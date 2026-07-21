@@ -1,0 +1,741 @@
+// Title: Minibench
+// Subtitle: kernel — comparison matrix
+// Author: Christopher Lester
+// Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+
+// Comparison matrix — the permutation harness
+//
+// The workbench exists to compare PERMUTATIONS of a task (workflow /
+// prompt / model / mechanical-vs-semantic). Given the snapshots for one
+// experiment, `compare` lays them out as a matrix: rows are state
+// variables, columns are variants, cells are score/status. Per row it
+// flags where the variants actually diverge — that's the signal the
+// shell highlights so you can see which config changed which outcome.
+use std::cmp::Reverse;
+use std::collections::btree_map::Entry;
+use std::collections::{BTreeMap, BTreeSet};
+use std::fmt;
+
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use workbench_contract::{
+    StateEvaluation, StateStatus, StateVarRegistry, StateVariable, WorkbenchSnapshotV1,
+};
+
+use crate::snapshot::{
+    RegistryMismatch, check_registry, experiment_id, registry_ref_key, variant_label,
+};
+
+// ------------------------------------------------------------------ Layer 0
+
+/// Standard deviation is only meaningful once at least two replicate
+/// observations exist.
+const MIN_REPLICATES_FOR_SPREAD: usize = 2;
+/// Float tolerance for classifying score-spread signals.
+const SCORE_SPREAD_EPSILON: f64 = 1e-9;
+/// Stable ordering used only to make tied status votes deterministic.
+const STATE_STATUS_ORDER: &[StateStatus] = &[
+    StateStatus::Pass,
+    StateStatus::Warn,
+    StateStatus::Fail,
+    StateStatus::Blocked,
+    StateStatus::NotApplicable,
+    StateStatus::Unknown,
+];
+/// Snapshot/variant provenance key for a policy content hash.
+pub(crate) const PROVENANCE_KEY_POLICY_HASH: &str = "policy_hash";
+/// Snapshot/variant provenance key for a policy version id.
+const PROVENANCE_KEY_POLICY_VERSION: &str = "policy_version";
+/// Snapshot/variant provenance key for an evaluator implementation hash.
+const PROVENANCE_KEY_EVALUATOR_HASH: &str = "evaluator_hash";
+/// Snapshot/variant provenance key for an evaluator version id.
+pub(crate) const PROVENANCE_KEY_EVALUATOR_VERSION: &str = "evaluator_version";
+/// Metadata object that may hold provenance fields.
+const METADATA_PROVENANCE_FIELD: &str = "provenance";
+/// Provenance fields that prove policy comparability when uniform.
+const POLICY_PROVENANCE_KEYS: &[&str] =
+    &[PROVENANCE_KEY_POLICY_HASH, PROVENANCE_KEY_POLICY_VERSION];
+/// Provenance fields that prove evaluator comparability when uniform.
+const EVALUATOR_PROVENANCE_KEYS: &[&str] = &[
+    PROVENANCE_KEY_EVALUATOR_HASH,
+    PROVENANCE_KEY_EVALUATOR_VERSION,
+];
+
+/// One variant's result for one state variable.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComparisonCell {
+    /// Majority status across replicates. A tied replicate vote resolves
+    /// to `Unknown` and sets `status_unstable`.
+    pub status: StateStatus,
+    /// Mean score across replicates that produced this state variable.
+    pub score: f64,
+    pub score_min: f64,
+    pub score_max: f64,
+    pub score_sd: f64,
+    /// Mean confidence across replicates that produced this state
+    /// variable.
+    pub confidence: f64,
+    pub confidence_min: f64,
+    pub confidence_max: f64,
+    pub present_count: usize,
+    pub replicate_count: usize,
+    pub status_unstable: bool,
+}
+
+/// One state variable across every variant in the experiment.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComparisonRow {
+    pub state_var_id: String,
+    /// Aligned to `ComparisonMatrix::variants`; `None` where a variant
+    /// produced no evaluation for this state variable.
+    pub cells: Vec<Option<ComparisonCell>>,
+    /// max − min of variant mean scores across produced cells.
+    pub score_spread: f64,
+    /// Largest within-variant min/max score spread for this row.
+    pub within_score_spread: f64,
+    /// Lowest confidence observed across the row's present cells.
+    pub confidence_min: f64,
+    /// Highest confidence observed across the row's present cells.
+    pub confidence_max: f64,
+    /// max - min confidence across variants and replicates for this row.
+    pub confidence_spread: f64,
+    /// True when registry threshold bands say the score spread is large
+    /// enough to be worth reviewing even without status divergence.
+    pub meaningful_score_spread: bool,
+    /// Interpretation of score spread relative to measured replicate noise.
+    pub spread_signal: SpreadSignal,
+    /// True when stable majority statuses differ across variants.
+    pub status_divergence: bool,
+    /// True when any variant or replicate did not produce this row.
+    pub coverage_divergence: bool,
+    /// True when at least one variant has no unique majority status.
+    pub status_unstable: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum SpreadSignal {
+    NoSpread,
+    SingleRun,
+    BetweenExceedsWithin,
+    WithinMatchesBetween,
+}
+
+/// A run matrix for one experiment: state variables × variants.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ComparisonMatrix {
+    pub experiment_id: String,
+    /// Column labels, in first-seen variant order (variant label, else
+    /// run id). Snapshots with the same experiment + label and distinct
+    /// run ids are grouped as replicates under one column.
+    pub variants: Vec<String>,
+    pub variant_replicates: Vec<usize>,
+    pub rows: Vec<ComparisonRow>,
+    pub warnings: Vec<CompareWarning>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum CompareWarning {
+    MissingSourceHashes,
+    MissingPolicyProvenance,
+    MissingEvaluatorProvenance,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CompareError {
+    EmptyInput,
+    MixedExperimentIds {
+        expected: String,
+        found: String,
+        snapshot_id: String,
+    },
+    MixedProducts {
+        expected: String,
+        found: String,
+        snapshot_id: String,
+    },
+    MixedRegistryRefs {
+        expected: String,
+        found: String,
+        snapshot_id: String,
+    },
+    MixedSourceHashes {
+        snapshot_id: String,
+    },
+    MixedProvenance {
+        key: String,
+        expected: String,
+        found: String,
+        snapshot_id: String,
+    },
+    RegistryRefMismatch {
+        expected: String,
+        found: String,
+    },
+    RegistryProductMismatch {
+        expected: String,
+        found: String,
+    },
+    DuplicateStateVarId {
+        snapshot_id: String,
+        state_var_id: String,
+    },
+    DuplicateVariantRun {
+        label: String,
+        run_id: String,
+    },
+}
+
+impl fmt::Display for CompareError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::EmptyInput => write!(f, "no snapshots to compare"),
+            Self::MixedExperimentIds {
+                expected,
+                found,
+                snapshot_id,
+            } => write!(
+                f,
+                "snapshot {snapshot_id} has experiment {found}, expected {expected}"
+            ),
+            Self::MixedProducts {
+                expected,
+                found,
+                snapshot_id,
+            } => write!(
+                f,
+                "snapshot {snapshot_id} has product {found}, expected {expected}"
+            ),
+            Self::MixedRegistryRefs {
+                expected,
+                found,
+                snapshot_id,
+            } => write!(
+                f,
+                "snapshot {snapshot_id} uses registry {found}, expected {expected}"
+            ),
+            Self::MixedSourceHashes { snapshot_id } => write!(
+                f,
+                "snapshot {snapshot_id} has source hashes that do not match the comparison set"
+            ),
+            Self::MixedProvenance {
+                key,
+                expected,
+                found,
+                snapshot_id,
+            } => write!(
+                f,
+                "snapshot {snapshot_id} has provenance {key}={found}, expected {expected}"
+            ),
+            Self::RegistryRefMismatch { expected, found } => {
+                write!(
+                    f,
+                    "registry {found} does not match comparison registry {expected}"
+                )
+            }
+            Self::RegistryProductMismatch { expected, found } => write!(
+                f,
+                "registry product {found} does not match comparison product {expected}"
+            ),
+            Self::DuplicateStateVarId {
+                snapshot_id,
+                state_var_id,
+            } => write!(
+                f,
+                "snapshot {snapshot_id} repeats evaluation {state_var_id}"
+            ),
+            Self::DuplicateVariantRun { label, run_id } => write!(
+                f,
+                "variant {label} contains duplicate run id {run_id}; replicates must have distinct run ids"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CompareError {}
+
+struct CompareContext {
+    experiment_id: String,
+    warnings: Vec<CompareWarning>,
+}
+
+fn normalized_source_hashes(snapshot: &WorkbenchSnapshotV1) -> Option<Vec<String>> {
+    snapshot.source_hashes.as_ref().map(|hashes| {
+        let mut normalized = hashes.clone();
+        normalized.sort();
+        normalized
+    })
+}
+
+fn metadata_provenance_value<'a>(metadata: Option<&'a Value>, key: &str) -> Option<&'a str> {
+    metadata
+        .and_then(|value| value.get(key).and_then(Value::as_str))
+        .or_else(|| {
+            metadata.and_then(|value| {
+                value
+                    .get(METADATA_PROVENANCE_FIELD)
+                    .and_then(|provenance| provenance.get(key))
+                    .and_then(Value::as_str)
+            })
+        })
+}
+
+fn provenance_value(snapshot: &WorkbenchSnapshotV1, key: &str) -> Option<String> {
+    snapshot
+        .variant
+        .as_ref()
+        .and_then(|variant| variant.axes.get(key).cloned())
+        .or_else(|| metadata_provenance_value(snapshot.metadata.as_ref(), key).map(str::to_string))
+}
+
+fn mean(values: &[f64]) -> f64 {
+    values.iter().sum::<f64>() / values.len() as f64
+}
+
+fn spread(values: &[f64]) -> f64 {
+    if values.len() < MIN_REPLICATES_FOR_SPREAD {
+        return 0.0;
+    }
+    let min = values.iter().copied().reduce(f64::min).unwrap_or(0.0);
+    let max = values.iter().copied().reduce(f64::max).unwrap_or(0.0);
+    max - min
+}
+
+fn spread_signal(
+    score_spread: f64,
+    within_score_spread: f64,
+    row_present_counts: &[usize],
+) -> SpreadSignal {
+    if score_spread <= SCORE_SPREAD_EPSILON && within_score_spread <= SCORE_SPREAD_EPSILON {
+        return SpreadSignal::NoSpread;
+    }
+    if row_present_counts
+        .iter()
+        .all(|present_count| *present_count < MIN_REPLICATES_FOR_SPREAD)
+    {
+        return SpreadSignal::SingleRun;
+    }
+    if within_score_spread + SCORE_SPREAD_EPSILON >= score_spread {
+        SpreadSignal::WithinMatchesBetween
+    } else {
+        SpreadSignal::BetweenExceedsWithin
+    }
+}
+
+fn meaningful_score_spread_threshold(state_var: &StateVariable) -> Option<f64> {
+    let mut thresholds: Vec<f64> = state_var
+        .thresholds
+        .values()
+        .copied()
+        .filter(|threshold| threshold.is_finite())
+        .collect();
+    thresholds.sort_by(f64::total_cmp);
+    thresholds
+        .windows(2)
+        .map(|window| window[1] - window[0])
+        .filter(|spread| *spread > SCORE_SPREAD_EPSILON)
+        .reduce(f64::min)
+}
+
+fn standard_deviation(values: &[f64]) -> f64 {
+    if values.len() < MIN_REPLICATES_FOR_SPREAD {
+        return 0.0;
+    }
+    let avg = mean(values);
+    let variance = values
+        .iter()
+        .map(|value| {
+            let delta = value - avg;
+            delta * delta
+        })
+        .sum::<f64>()
+        / values.len() as f64;
+    variance.sqrt()
+}
+
+fn majority_status(statuses: &[StateStatus]) -> (StateStatus, bool) {
+    let mut ranked: Vec<(StateStatus, usize)> = STATE_STATUS_ORDER
+        .iter()
+        .map(|status| {
+            (
+                *status,
+                statuses
+                    .iter()
+                    .filter(|candidate| *candidate == status)
+                    .count(),
+            )
+        })
+        .filter(|(_, count)| *count > 0)
+        .collect();
+    ranked.sort_by_key(|(_, count)| Reverse(*count));
+
+    let Some((status, count)) = ranked.first() else {
+        return (StateStatus::Unknown, true);
+    };
+    let tied = ranked
+        .get(1)
+        .is_some_and(|(_, next_count)| next_count == count);
+    if tied {
+        (StateStatus::Unknown, true)
+    } else {
+        (*status, false)
+    }
+}
+
+// ------------------------------------------------------------------ Layer 1
+
+fn validate_provenance_key(
+    snapshots: &[WorkbenchSnapshotV1],
+    key: &str,
+) -> Result<bool, CompareError> {
+    let values: Vec<_> = snapshots
+        .iter()
+        .map(|snapshot| (snapshot, provenance_value(snapshot, key)))
+        .collect();
+    if values.iter().all(|(_, value)| value.is_none()) {
+        return Ok(false);
+    }
+
+    let expected = values.iter().find_map(|(_, value)| value.as_ref()).cloned();
+    let Some(expected) = expected else {
+        return Ok(false);
+    };
+
+    for (snapshot, value) in values {
+        match value {
+            Some(value) if value == expected => {}
+            Some(value) => {
+                return Err(CompareError::MixedProvenance {
+                    key: key.to_string(),
+                    expected,
+                    found: value,
+                    snapshot_id: snapshot.snapshot_id.clone(),
+                });
+            }
+            None => {
+                return Err(CompareError::MixedProvenance {
+                    key: key.to_string(),
+                    expected,
+                    found: "<missing>".to_string(),
+                    snapshot_id: snapshot.snapshot_id.clone(),
+                });
+            }
+        }
+    }
+    Ok(true)
+}
+
+fn validate_provenance_group(
+    snapshots: &[WorkbenchSnapshotV1],
+    keys: &[&str],
+) -> Result<bool, CompareError> {
+    let mut has_group_provenance = false;
+    for key in keys {
+        has_group_provenance |= validate_provenance_key(snapshots, key)?;
+    }
+    Ok(has_group_provenance)
+}
+
+fn validate_comparable(snapshots: &[WorkbenchSnapshotV1]) -> Result<CompareContext, CompareError> {
+    let Some(first) = snapshots.first() else {
+        return Err(CompareError::EmptyInput);
+    };
+
+    let expected_experiment_id = experiment_id(first);
+    let expected_product = first.product.clone();
+    let expected_registry_ref = first.registry_ref.clone();
+    let expected_source_hashes = normalized_source_hashes(first);
+    let mut missing_source_hashes = expected_source_hashes.is_none();
+
+    let mut seen_variant_runs: BTreeSet<(String, String)> = BTreeSet::new();
+    for snapshot in snapshots {
+        let found_experiment_id = experiment_id(snapshot);
+        if found_experiment_id != expected_experiment_id {
+            return Err(CompareError::MixedExperimentIds {
+                expected: expected_experiment_id.clone(),
+                found: found_experiment_id,
+                snapshot_id: snapshot.snapshot_id.clone(),
+            });
+        }
+
+        if snapshot.product != expected_product {
+            return Err(CompareError::MixedProducts {
+                expected: expected_product.clone(),
+                found: snapshot.product.clone(),
+                snapshot_id: snapshot.snapshot_id.clone(),
+            });
+        }
+
+        if snapshot.registry_ref != expected_registry_ref {
+            return Err(CompareError::MixedRegistryRefs {
+                expected: registry_ref_key(&expected_registry_ref),
+                found: registry_ref_key(&snapshot.registry_ref),
+                snapshot_id: snapshot.snapshot_id.clone(),
+            });
+        }
+
+        let source_hashes = normalized_source_hashes(snapshot);
+        missing_source_hashes |= source_hashes.is_none();
+        if source_hashes.is_some()
+            && expected_source_hashes.is_some()
+            && source_hashes != expected_source_hashes
+        {
+            return Err(CompareError::MixedSourceHashes {
+                snapshot_id: snapshot.snapshot_id.clone(),
+            });
+        }
+        if source_hashes.is_some() != expected_source_hashes.is_some() {
+            return Err(CompareError::MixedSourceHashes {
+                snapshot_id: snapshot.snapshot_id.clone(),
+            });
+        }
+
+        let mut state_var_ids = BTreeSet::new();
+        for evaluation in &snapshot.evaluations {
+            if !state_var_ids.insert(evaluation.state_var_id.clone()) {
+                return Err(CompareError::DuplicateStateVarId {
+                    snapshot_id: snapshot.snapshot_id.clone(),
+                    state_var_id: evaluation.state_var_id.clone(),
+                });
+            }
+        }
+
+        let label = variant_label(snapshot);
+        let run_key = (label.clone(), snapshot.run_id.clone());
+        if !seen_variant_runs.insert(run_key) {
+            return Err(CompareError::DuplicateVariantRun {
+                label,
+                run_id: snapshot.run_id.clone(),
+            });
+        }
+    }
+
+    let mut warnings = Vec::new();
+    if missing_source_hashes {
+        warnings.push(CompareWarning::MissingSourceHashes);
+    }
+    if !validate_provenance_group(snapshots, POLICY_PROVENANCE_KEYS)? {
+        warnings.push(CompareWarning::MissingPolicyProvenance);
+    }
+    if !validate_provenance_group(snapshots, EVALUATOR_PROVENANCE_KEYS)? {
+        warnings.push(CompareWarning::MissingEvaluatorProvenance);
+    }
+
+    Ok(CompareContext {
+        experiment_id: expected_experiment_id,
+        warnings,
+    })
+}
+
+fn aggregate_cell(
+    evaluations: Vec<&StateEvaluation>,
+    replicate_count: usize,
+) -> Option<ComparisonCell> {
+    if evaluations.is_empty() {
+        return None;
+    }
+
+    let scores: Vec<f64> = evaluations
+        .iter()
+        .map(|evaluation| evaluation.score)
+        .collect();
+    let confidences: Vec<f64> = evaluations
+        .iter()
+        .map(|evaluation| evaluation.confidence)
+        .collect();
+    let statuses: Vec<StateStatus> = evaluations
+        .iter()
+        .map(|evaluation| evaluation.status)
+        .collect();
+    let (status, status_unstable) = majority_status(&statuses);
+
+    Some(ComparisonCell {
+        status,
+        score: mean(&scores),
+        score_min: scores.iter().copied().reduce(f64::min).unwrap_or(0.0),
+        score_max: scores.iter().copied().reduce(f64::max).unwrap_or(0.0),
+        score_sd: standard_deviation(&scores),
+        confidence: mean(&confidences),
+        confidence_min: confidences.iter().copied().reduce(f64::min).unwrap_or(0.0),
+        confidence_max: confidences.iter().copied().reduce(f64::max).unwrap_or(0.0),
+        present_count: evaluations.len(),
+        replicate_count,
+        status_unstable,
+    })
+}
+
+fn validate_comparison_registry(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: &StateVarRegistry,
+) -> Result<(), CompareError> {
+    let Some(first) = snapshots.first() else {
+        return Err(CompareError::EmptyInput);
+    };
+    check_registry(first, registry).map_err(|mismatch| match mismatch {
+        RegistryMismatch::Ref { expected, found } => {
+            CompareError::RegistryRefMismatch { expected, found }
+        }
+        RegistryMismatch::Product { expected, found } => {
+            CompareError::RegistryProductMismatch { expected, found }
+        }
+    })
+}
+
+// ------------------------------------------------------------------ Layer 2
+
+fn compare_inner(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: Option<&StateVarRegistry>,
+) -> Result<ComparisonMatrix, CompareError> {
+    let ctx = validate_comparable(snapshots)?;
+    if let Some(registry) = registry {
+        validate_comparison_registry(snapshots, registry)?;
+    }
+    let state_vars: BTreeMap<&str, &StateVariable> = registry
+        .map(|registry| {
+            registry
+                .state_vars
+                .iter()
+                .map(|state_var| (state_var.id.as_str(), state_var))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut variants: Vec<String> = Vec::new();
+    let mut groups: BTreeMap<String, Vec<&WorkbenchSnapshotV1>> = BTreeMap::new();
+    for snapshot in snapshots {
+        let label = variant_label(snapshot);
+        match groups.entry(label.clone()) {
+            Entry::Vacant(entry) => {
+                variants.push(label);
+                entry.insert(vec![snapshot]);
+            }
+            Entry::Occupied(mut entry) => entry.get_mut().push(snapshot),
+        }
+    }
+
+    // First-seen order of state-variable ids across all snapshots.
+    let mut order: Vec<String> = Vec::new();
+    for snap in snapshots {
+        for ev in &snap.evaluations {
+            if !order.iter().any(|id| id == &ev.state_var_id) {
+                order.push(ev.state_var_id.clone());
+            }
+        }
+    }
+
+    let variant_replicates: Vec<usize> = variants
+        .iter()
+        .map(|variant| groups[variant].len())
+        .collect();
+
+    let rows = order
+        .into_iter()
+        .map(|state_var_id| {
+            let cells: Vec<Option<ComparisonCell>> = variants
+                .iter()
+                .map(|variant| {
+                    let group = &groups[variant];
+                    let evaluations: Vec<_> = group
+                        .iter()
+                        .filter_map(|snapshot| {
+                            snapshot
+                                .evaluations
+                                .iter()
+                                .find(|ev| ev.state_var_id == state_var_id)
+                        })
+                        .collect();
+                    aggregate_cell(evaluations, group.len())
+                })
+                .collect();
+
+            let scores: Vec<f64> = cells.iter().flatten().map(|c| c.score).collect();
+            let score_spread = spread(&scores);
+            let within_score_spread = cells
+                .iter()
+                .flatten()
+                .map(|cell| cell.score_max - cell.score_min)
+                .reduce(f64::max)
+                .unwrap_or(0.0);
+            let confidence_min = cells
+                .iter()
+                .flatten()
+                .map(|cell| cell.confidence_min)
+                .reduce(f64::min)
+                .unwrap_or(0.0);
+            let confidence_max = cells
+                .iter()
+                .flatten()
+                .map(|cell| cell.confidence_max)
+                .reduce(f64::max)
+                .unwrap_or(0.0);
+            let confidence_spread = confidence_max - confidence_min;
+            let meaningful_score_spread = state_vars
+                .get(state_var_id.as_str())
+                .and_then(|state_var| meaningful_score_spread_threshold(state_var))
+                .is_some_and(|threshold| score_spread + SCORE_SPREAD_EPSILON >= threshold);
+            let row_present_counts: Vec<usize> = cells
+                .iter()
+                .map(|cell| cell.as_ref().map_or(0, |cell| cell.present_count))
+                .collect();
+            let spread_signal =
+                spread_signal(score_spread, within_score_spread, &row_present_counts);
+            let stable_statuses: Vec<StateStatus> = cells
+                .iter()
+                .flatten()
+                .filter(|cell| !cell.status_unstable)
+                .map(|cell| cell.status)
+                .collect();
+            let status_divergence = stable_statuses
+                .split_first()
+                .is_some_and(|(first, rest)| rest.iter().any(|status| status != first));
+            let coverage_divergence = cells.iter().any(|cell| match cell {
+                Some(cell) => cell.present_count != cell.replicate_count,
+                None => true,
+            });
+            let status_unstable = cells.iter().flatten().any(|cell| cell.status_unstable);
+
+            ComparisonRow {
+                state_var_id,
+                cells,
+                score_spread,
+                within_score_spread,
+                confidence_min,
+                confidence_max,
+                confidence_spread,
+                meaningful_score_spread,
+                spread_signal,
+                status_divergence,
+                coverage_divergence,
+                status_unstable,
+            }
+        })
+        .collect();
+
+    Ok(ComparisonMatrix {
+        experiment_id: ctx.experiment_id,
+        variants,
+        variant_replicates,
+        rows,
+        warnings: ctx.warnings,
+    })
+}
+
+/// Lay out the snapshots of one experiment as a comparison matrix.
+/// Variant columns keep first-seen order; snapshots with the same
+/// experiment + label and distinct run ids are grouped as replicates.
+/// State-variable rows keep first-seen order across snapshots so the
+/// matrix is stable.
+pub fn compare(snapshots: &[WorkbenchSnapshotV1]) -> Result<ComparisonMatrix, CompareError> {
+    compare_inner(snapshots, None)
+}
+
+/// Registry-aware comparison that can flag same-status score spread as
+/// meaningful when it crosses the state variable's threshold-band width.
+pub fn compare_with_registry(
+    snapshots: &[WorkbenchSnapshotV1],
+    registry: &StateVarRegistry,
+) -> Result<ComparisonMatrix, CompareError> {
+    compare_inner(snapshots, Some(registry))
+}
