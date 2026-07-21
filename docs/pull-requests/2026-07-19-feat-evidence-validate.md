@@ -26,6 +26,16 @@ non-zero when any evaluation's evidence falls short.
   rules: declared requirements with zero refs (`missing_evidence`) and
   `pass` status with zero refs (`pass_without_evidence`, enforced even
   when the state variable declares no requirements).
+- **Explicit `min_count: 0` waives the zero-refs invariants.** An author
+  writing a literal zero is stating that no evidence is legitimate for
+  that variable — the common case being a variable that reads
+  `not_applicable` when its source collection is empty. Treating that
+  declaration as "requires evidence" would hand the author the exact
+  opposite of what they wrote (found in the miniforge ETL adapter's
+  `data_quality_pass_rate`, which pairs `min_count 0` with a
+  `required_refs` entry). Omitting `min_count` is NOT the same and keeps
+  the invariants in force; `required_refs` still constrains the
+  non-empty case. Same shape as `must_include_*: Some(false)`.
 - **CLI:** `minibench validate <snapshot.json|dir> <registry.json>`.
   The registry argument is required — the requirements are the yardstick.
   A directory target validates every decodable `*.json` snapshot in it,

@@ -1218,6 +1218,15 @@ fn validate_evaluation(
     violations: &mut Vec<EvidenceViolation>,
 ) {
     if evaluation.evidence_refs.is_empty() {
+        // An explicit `min_count: 0` is the registry author stating that
+        // zero evidence is legitimate for this variable (a variable that
+        // reads not_applicable when its source collection is empty).
+        // Honor it as a waiver of the zero-refs invariants, the same way
+        // `must_include_*: Some(false)` waives its rule. `required_refs`
+        // still constrains the non-empty case below.
+        if permits_zero_evidence(requirements) {
+            return;
+        }
         // Zero refs implies every per-rule check, so report the two
         // invariant shortfalls and skip the redundant detail.
         if evaluation.status == StateStatus::Pass {
@@ -1248,10 +1257,17 @@ fn validate_evaluation(
 /// does not count as a declared requirement.
 fn declares_requirements(requirements: &EvidenceRequirements) -> bool {
     !requirements.required_refs.is_empty()
-        || requirements.min_count.is_some()
+        || requirements.min_count.is_some_and(|min| min > 0)
         || requirements.must_include_hash == Some(true)
         || requirements.must_include_source_role == Some(true)
         || requirements.freshness_sla_hours.is_some()
+}
+
+/// True when the registry explicitly permits an evaluation to carry no
+/// evidence at all. Only an explicit `min_count: 0` says this — omitting
+/// `min_count` leaves the zero-refs invariants in force.
+fn permits_zero_evidence(requirements: &EvidenceRequirements) -> bool {
+    requirements.min_count == Some(0)
 }
 
 fn check_min_count(
@@ -2101,6 +2117,78 @@ mod tests {
         let report = validate(&snap, &registry).expect("matching registry");
 
         assert!(report.is_clean(), "Some(false) waives, not requires");
+    }
+
+    #[test]
+    fn validate_treats_explicit_min_count_zero_as_permitting_no_evidence() {
+        // A registry author writing `min_count: 0` is stating that zero
+        // evidence is legitimate for this variable (it reads not_applicable
+        // when its source collection is empty). Reading that as "declares a
+        // requirement" would hand the author the opposite of what they wrote.
+        let mut snap = opus_snapshot();
+        for evaluation in &mut snap.evaluations {
+            evaluation.evidence_refs.clear();
+            evaluation.status = StateStatus::Pass;
+        }
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                min_count: Some(0),
+                required_refs: vec!["data-quality-report".to_string()],
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(
+            report.is_clean(),
+            "explicit min_count 0 waives the zero-refs invariants: {:?}",
+            report.violations
+        );
+    }
+
+    #[test]
+    fn validate_still_enforces_required_refs_when_min_count_zero_and_refs_present() {
+        // min_count 0 permits the EMPTY case only. Once an evaluation does
+        // carry refs, required_refs still constrains them.
+        let snap = opus_snapshot();
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                min_count: Some(0),
+                required_refs: vec!["nonexistent-role".to_string()],
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert_eq!(
+            violation_kinds(&report),
+            vec![EvidenceViolationKind::MissingRequiredRef]
+        );
+    }
+
+    #[test]
+    fn validate_omitted_min_count_still_flags_zero_evidence() {
+        // Omitting min_count is NOT the same as writing 0 — the zero-refs
+        // invariants stay in force.
+        let mut snap = opus_snapshot();
+        for evaluation in &mut snap.evaluations {
+            evaluation.evidence_refs.clear();
+        }
+        let registry = registry_with_requirements(
+            &snap,
+            EvidenceRequirements {
+                required_refs: vec!["lens-verdict".to_string()],
+                ..no_requirements()
+            },
+        );
+
+        let report = validate(&snap, &registry).expect("matching registry");
+
+        assert!(violation_kinds(&report).contains(&EvidenceViolationKind::MissingEvidence));
     }
 
     #[test]
