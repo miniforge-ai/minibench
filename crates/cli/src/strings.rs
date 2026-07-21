@@ -13,7 +13,8 @@ pub const USAGE: &str = concat!(
     "diff <baseline-dir> <current-dir> [--corrections <dir>] | ",
     "correct <corrections-dir> --experiment <id> --variant <label> ",
     "--state-var <id> --status <status> --rationale <why> --by <who> ",
-    "[--score <n>] [--snapshot-id <id>]>"
+    "[--score <n>] [--snapshot-id <id>] | ",
+    "validate <snapshot.json|dir> <registry.json>>"
 );
 pub const ERROR_PREFIX: &str = "error:";
 pub const WARNING_PREFIX: &str = "warning:";
@@ -47,6 +48,27 @@ pub const UNKNOWN_ARGUMENT: &str = "unknown argument:";
 pub const MISSING_ARGUMENT_VALUE: &str = "missing value for";
 pub const MISSING_REQUIRED_ARGUMENT: &str = "missing required argument:";
 pub const TIMESTAMP_FORMAT_FAILED: &str = "could not format the current time as RFC 3339:";
+
+// validate / evidence gate
+pub const NO_EVIDENCE_VIOLATIONS: &str = "no evidence violations";
+pub const VIOLATIONS_HEADER: &str = "violations:";
+/// Exit code when `validate` finds violations — non-zero so CI fails the
+/// build, distinct from the `diff` regression code.
+pub const VIOLATION_EXIT_CODE: u8 = 4;
+pub const NO_DECODABLE_SNAPSHOTS: &str = "no decodable *.json snapshots found in";
+pub const SKIPPING_UNDECODABLE: &str = "skipping undecodable *.json:";
+/// Machine-greppable violation-kind labels, mirroring the kernel's
+/// snake_case serde names.
+pub const VIOLATION_MISSING_EVIDENCE: &str = "missing_evidence";
+pub const VIOLATION_PASS_WITHOUT_EVIDENCE: &str = "pass_without_evidence";
+pub const VIOLATION_BELOW_MIN_COUNT: &str = "below_min_count";
+pub const VIOLATION_MISSING_REQUIRED_REF: &str = "missing_required_ref";
+pub const VIOLATION_MISSING_HASH: &str = "missing_hash";
+pub const VIOLATION_MISSING_SOURCE_ROLE: &str = "missing_source_role";
+pub const VIOLATION_STALE_EVIDENCE: &str = "stale_evidence";
+pub const VIOLATION_MISSING_CREATED_AT: &str = "missing_created_at";
+pub const VIOLATION_MALFORMED_TIMESTAMP: &str = "malformed_timestamp";
+pub const VIOLATION_UNKNOWN_STATE_VAR: &str = "unknown_state_var";
 
 // compare matrix
 pub const EXPERIMENT_PREFIX: &str = "experiment:";

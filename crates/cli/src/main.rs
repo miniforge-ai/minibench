@@ -10,8 +10,10 @@
 //! `minibench diff` — regression gate vs the frozen baseline, optionally
 //! judging human-corrected cells against their recorded expectation.
 //! `minibench correct` — record one human correction as a JSON file.
-//! This is the terminal view of the permutation harness; the Swift shell
-//! renders the same `ComparisonMatrix` later.
+//! `minibench validate <snapshot.json|dir> <registry.json>` — check every
+//! evaluation's evidence refs against the registry's declared
+//! evidence requirements. This is the terminal view of the permutation
+//! harness; the Swift shell will render the same `ValidationReport` later.
 
 mod strings;
 
@@ -20,8 +22,9 @@ use std::process::ExitCode;
 
 use minibench_kernel::{
     CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, CorrectedDiffReport,
-    CorrectionKey, CorrectionSet, CorrectionV1, RegressionReport, SpreadSignal, compare,
-    compare_with_registry, diff, diff_with_corrections, summarize,
+    CorrectionKey, CorrectionSet, CorrectionV1, EvidenceViolationKind, RegressionReport,
+    SpreadSignal, ValidationReport, compare, compare_with_registry, diff, diff_with_corrections,
+    summarize, validate,
 };
 use workbench_contract::{StateStatus, StateVarRegistry, WorkbenchSnapshotV1};
 
@@ -45,6 +48,10 @@ fn main() -> ExitCode {
             _ => usage(),
         },
         Some("correct") => run_correct(&args[1..]),
+        Some("validate") => match (args.get(1), args.get(2)) {
+            (Some(target), Some(registry)) => run_validate(Path::new(target), Path::new(registry)),
+            _ => usage(),
+        },
         _ => usage(),
     }
 }
@@ -183,6 +190,55 @@ fn run_diff(baseline_dir: &Path, current_dir: &Path, corrections_dir: Option<&Pa
         ExitCode::SUCCESS
     } else {
         ExitCode::from(strings::REGRESSION_EXIT_CODE)
+    }
+}
+
+/// `minibench validate <snapshot.json|dir> <registry.json>` — check every
+/// evaluation's evidence refs against the registry's declared
+/// `evidence_requirements` and exit non-zero when any fall short. The
+/// registry argument is required: the requirements are the yardstick. A
+/// directory target validates every decodable `*.json` snapshot in it;
+/// files that do not decode as snapshots are skipped with a warning so a
+/// registry sitting beside its snapshots does not abort the gate.
+fn run_validate(target: &Path, registry_path: &Path) -> ExitCode {
+    let registry = match read_registry(registry_path) {
+        Ok(registry) => registry,
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            return ExitCode::FAILURE;
+        }
+    };
+    let snapshots = if target.is_dir() {
+        match load_decodable(target) {
+            Ok(snapshots) => snapshots,
+            Err(code) => return code,
+        }
+    } else {
+        match read_snapshot(target) {
+            Ok(snapshot) => vec![snapshot],
+            Err(message) => {
+                eprintln!("{} {message}", strings::ERROR_PREFIX);
+                return ExitCode::FAILURE;
+            }
+        }
+    };
+
+    let mut clean = true;
+    for snapshot in &snapshots {
+        let report = match validate(snapshot, &registry) {
+            Ok(report) => report,
+            Err(err) => {
+                eprintln!("{} {err}", strings::ERROR_PREFIX);
+                return ExitCode::FAILURE;
+            }
+        };
+        print_validation(&report);
+        clean &= report.is_clean();
+    }
+    if clean {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::from(strings::VIOLATION_EXIT_CODE)
     }
 }
 
@@ -454,7 +510,7 @@ fn read_registry(file: &Path) -> Result<StateVarRegistry, String> {
     serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", file.display()))
 }
 
-fn load_dir(dir: &Path) -> Result<Vec<WorkbenchSnapshotV1>, String> {
+fn json_paths(dir: &Path) -> Result<Vec<PathBuf>, String> {
     let mut paths: Vec<_> = std::fs::read_dir(dir)
         .map_err(|e| format!("{}: {e}", dir.display()))?
         .filter_map(Result::ok)
@@ -462,12 +518,86 @@ fn load_dir(dir: &Path) -> Result<Vec<WorkbenchSnapshotV1>, String> {
         .filter(|p| p.extension().and_then(|x| x.to_str()) == Some("json"))
         .collect();
     paths.sort();
+    Ok(paths)
+}
 
+fn load_dir(dir: &Path) -> Result<Vec<WorkbenchSnapshotV1>, String> {
+    let paths = json_paths(dir)?;
     let mut snapshots = Vec::with_capacity(paths.len());
     for path in paths {
         snapshots.push(read_snapshot(&path)?);
     }
     Ok(snapshots)
+}
+
+/// Load every `*.json` in `dir` that decodes as a snapshot, warning on
+/// the ones that do not; zero decodable snapshots is an error, not a
+/// clean gate.
+fn load_decodable(dir: &Path) -> Result<Vec<WorkbenchSnapshotV1>, ExitCode> {
+    let paths = match json_paths(dir) {
+        Ok(paths) => paths,
+        Err(message) => {
+            eprintln!("{} {message}", strings::ERROR_PREFIX);
+            return Err(ExitCode::FAILURE);
+        }
+    };
+    let mut snapshots = Vec::with_capacity(paths.len());
+    for path in paths {
+        match read_snapshot(&path) {
+            Ok(snapshot) => snapshots.push(snapshot),
+            Err(message) => eprintln!(
+                "{} {} {message}",
+                strings::WARNING_PREFIX,
+                strings::SKIPPING_UNDECODABLE
+            ),
+        }
+    }
+    if snapshots.is_empty() {
+        eprintln!(
+            "{} {} {}",
+            strings::ERROR_PREFIX,
+            strings::NO_DECODABLE_SNAPSHOTS,
+            dir.display()
+        );
+        return Err(ExitCode::FAILURE);
+    }
+    Ok(snapshots)
+}
+
+fn print_validation(report: &ValidationReport) {
+    println!("{} {}", report.product, report.snapshot_id);
+    if report.is_clean() {
+        println!("  {}", strings::NO_EVIDENCE_VIOLATIONS);
+        return;
+    }
+    println!(
+        "  {} {}",
+        strings::VIOLATIONS_HEADER,
+        report.violations.len()
+    );
+    for violation in &report.violations {
+        println!(
+            "    {:<34} {:<22} {}",
+            violation.state_var_id,
+            violation_kind_str(violation.kind),
+            violation.message
+        );
+    }
+}
+
+fn violation_kind_str(kind: EvidenceViolationKind) -> &'static str {
+    match kind {
+        EvidenceViolationKind::MissingEvidence => strings::VIOLATION_MISSING_EVIDENCE,
+        EvidenceViolationKind::PassWithoutEvidence => strings::VIOLATION_PASS_WITHOUT_EVIDENCE,
+        EvidenceViolationKind::BelowMinCount => strings::VIOLATION_BELOW_MIN_COUNT,
+        EvidenceViolationKind::MissingRequiredRef => strings::VIOLATION_MISSING_REQUIRED_REF,
+        EvidenceViolationKind::MissingHash => strings::VIOLATION_MISSING_HASH,
+        EvidenceViolationKind::MissingSourceRole => strings::VIOLATION_MISSING_SOURCE_ROLE,
+        EvidenceViolationKind::StaleEvidence => strings::VIOLATION_STALE_EVIDENCE,
+        EvidenceViolationKind::MissingCreatedAt => strings::VIOLATION_MISSING_CREATED_AT,
+        EvidenceViolationKind::MalformedTimestamp => strings::VIOLATION_MALFORMED_TIMESTAMP,
+        EvidenceViolationKind::UnknownStateVar => strings::VIOLATION_UNKNOWN_STATE_VAR,
+    }
 }
 
 fn status_str(status: StateStatus) -> &'static str {
