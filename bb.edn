@@ -37,5 +37,9 @@
    :task (app/run-app!)}
 
   regression-gate
-  {:doc "Fail if any state variable regressed vs the committed baseline (status worse or score dropped). The CI loop-closing gate."
-   :task (shell "cargo run -q -p minibench-cli -- diff fixtures/baseline fixtures/experiments")}}}
+  {:doc "Fail if any state variable regressed vs the committed baseline (status worse or score dropped), judging human-corrected cells against their recorded expectation when fixtures/corrections exists. The CI loop-closing gate."
+   :requires ([babashka.fs :as fs])
+   :task (shell (str "cargo run -q -p minibench-cli -- diff fixtures/baseline fixtures/experiments"
+                     (if (fs/exists? "fixtures/corrections")
+                       " --corrections fixtures/corrections"
+                       "")))}}}

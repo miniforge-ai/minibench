@@ -250,6 +250,7 @@ version = "0.1.0"
 dependencies = [
  "minibench-kernel",
  "serde_json",
+ "time",
  "workbench-contract",
 ]
 
