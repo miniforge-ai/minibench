@@ -45,6 +45,6 @@
                        "")))}
 
   validate-gate
-  {:doc "Fail if any committed fixture snapshot's evidence refs fall short of its registry's evidence_requirements (minibench validate, exit 4), or a snapshot names a registry with no copy in fixtures/registries/."
+  {:doc "Fail if any committed fixture snapshot's evidence refs fall short of its registry's evidence_requirements, names a registry with no copy in fixtures/registries/, or cannot be read. Aggregates every failure, then exits 1."
    :requires ([validate])
    :task (validate/gate!)}}}
