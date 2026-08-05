@@ -79,10 +79,20 @@ established — Layer 0 (records, keys, validation) then Layer 1
 reuse `regression.rs`'s comparison rules rather than restate them, and
 the 200 lines of correction tests returned to `tests.rs`.
 
-`fixtures/corrections/` is a separate, still-open gap: PR #17's doc
-describes a committed example correction, but no such fixture was ever
-committed. `bb regression-gate` guards on the directory's existence, so
-the corrections path is exercised only by unit tests, never by CI.
+`fixtures/corrections/` is a separate, still-open gap. PR #17 deliberately
+shipped no correction — a committed correction is a recorded human
+judgment, and none had been made — but its doc described the directory as
+shipping "empty", which git cannot do. So the directory did not exist at
+all, the `fs/exists?` guard in `bb regression-gate` never fired, and the
+corrections path was exercised only by unit tests, never by CI.
+
+> **Amendment (2026-08-04).** Closed by
+> `2026-08-04-feat-commit-corrections-fixture.md`: a human-recorded
+> correction now ships under `fixtures/corrections/`, so the guard fires
+> and CI runs `diff_with_corrections` end-to-end. The paragraph above
+> originally read that PR #17's doc "describes a committed example
+> correction"; it does not — it states the opposite. Corrected in place
+> because the follow-up work was scoped from that misreading.
 
 ### Conflict resolution
 

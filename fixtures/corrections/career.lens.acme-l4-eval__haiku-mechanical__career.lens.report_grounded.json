@@ -1,0 +1,11 @@
+{
+  "experiment_id": "career.lens.acme-l4-eval",
+  "variant_label": "haiku+mechanical",
+  "state_var_id": "career.lens.report_grounded",
+  "expected_status": "fail",
+  "expected_score": 0.4,
+  "rationale": "Mechanical extraction grounds materially lower than the semantic variant on this eval; 0.40 is the accepted floor for this method rather than the frozen 0.43 baseline, so run-to-run drift does not fail the gate while a real drop still does.",
+  "corrected_by": "christopher@miniforge.ai",
+  "corrected_at": "2026-08-05T05:32:15.707805Z",
+  "snapshot_id": "wb-haiku+mechanical-20260720T065605Z"
+}
