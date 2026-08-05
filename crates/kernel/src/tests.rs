@@ -1235,6 +1235,7 @@ fn committed_correction_fixture_targets_a_live_cell() {
         "career.lens.acme-l4-eval__haiku-mechanical__career.lens.report_grounded.json"
     )))
     .expect("decode committed correction");
+    let key = correction.key();
     let corrections = CorrectionSet::new(vec![correction]).expect("valid committed correction");
     let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
         "../../../fixtures/baseline/haiku-mechanical.json"
@@ -1257,13 +1258,19 @@ fn committed_correction_fixture_targets_a_live_cell() {
         report.stale
     );
     assert_eq!(
-        report.applied.len(),
-        1,
-        "the gate should judge exactly one cell against the committed correction"
+        report.applied,
+        vec![key.clone()],
+        "the gate should judge exactly this cell against the committed correction"
     );
+    // Scoped to the corrected cell, not `is_clean()`: an unrelated cell
+    // regressing is the regression gate's business, not this test's.
+    let target = report.regressions.iter().find(|regression| {
+        regression.experiment_id == key.experiment_id
+            && regression.variant == key.variant_label
+            && regression.state_var_id == key.state_var_id
+    });
     assert!(
-        report.is_clean(),
-        "committed fixtures must pass the committed correction: {:?}",
-        report.regressions
+        target.is_none(),
+        "committed fixtures fall below the committed correction's floor: {target:?}"
     );
 }
