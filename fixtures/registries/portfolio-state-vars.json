@@ -12,9 +12,14 @@
       "kind": "sufficiency",
       "description": "A signal lens has enough dates, subjects, horizon sample, and regime-slice sample to be scored rather than marked insufficient.",
       "value_type": "enum",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["LensValidationReadiness"],
+        "required_refs": [
+          "LensValidationReadiness"
+        ],
         "min_count": 1,
         "must_include_source_role": true
       },
@@ -31,8 +36,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "risk-dashboard",
-      "notes": "Mirrors lens_validation_readiness/domain.clj thresholds (min-date-count, min-subject-count, min-horizon-sample, min-regime-slice-sample)."
+      "owner": "portfolio",
+      "notes": "Whether the lens has enough validated history to score: date count, subject count, and horizon sample all above their configured minimums."
     },
     {
       "id": "portfolio.signal.quality_scored",
@@ -42,9 +47,14 @@
       "kind": "quality",
       "description": "Signal quality is scored (not insufficient-sample / insufficient-regime-coverage) and clears metric acceptance.",
       "value_type": "number",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["SignalQualityRecord"],
+        "required_refs": [
+          "SignalQualityRecord"
+        ],
         "min_count": 1,
         "must_include_source_role": true
       },
@@ -60,8 +70,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "risk-dashboard",
-      "notes": "Mirrors signal_quality/domain.clj acceptance statuses."
+      "owner": "portfolio",
+      "notes": "Whether every signal carries an acceptance status from the quality pass."
     },
     {
       "id": "portfolio.data.fidelity_gate",
@@ -71,9 +81,14 @@
       "kind": "integrity",
       "description": "Input data fidelity stays within bounds: missing inputs, fallback methods, and dropped observations under policy ceilings.",
       "value_type": "boolean",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["SourceProvenance"],
+        "required_refs": [
+          "SourceProvenance"
+        ],
         "min_count": 1,
         "must_include_hash": true
       },
@@ -89,8 +104,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "risk-data-plane",
-      "notes": "Mirrors lens-validation-substrate validation policy (max-missing-input-pct, max-fallback-method-pct, max-dropped-observation-pct)."
+      "owner": "portfolio",
+      "notes": "Whether missing inputs, fallback methods, and dropped observations all stay under their configured ceilings."
     }
   ]
 }

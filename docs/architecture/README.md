@@ -1,3 +1,9 @@
+<!--
+  Title: Minibench
+  Author: Christopher Lester (christopher@miniforge.ai)
+  Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
+-->
+
 # Architecture
 
 How tenant products feed `workbench_snapshot/v1` bodies into the
@@ -8,7 +14,9 @@ pre-implementation bootstrap sketches (the 2026-06-06
 "thesium-miniforge-workbench-bootstrap" bundle); §6 records what changed
 between that sketch and what shipped. Career-pipeline internals live in
 `thesium-workflows/docs/design/career-pipeline-architecture.md`, not
-here — this doc stops at the adapter seam.
+here — this doc stops at the adapter seam. That repository, and the
+bootstrap bundle, are closed source; nothing in this document depends on
+reading them.
 
 All diagrams are Mermaid fences, rendered natively by GitHub. Edit them
 in place; no generated images are checked in, so nothing can go stale

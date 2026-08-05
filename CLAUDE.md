@@ -1,8 +1,15 @@
+<!--
+  Title: Minibench
+  Author: Christopher Lester (christopher@miniforge.ai)
+  Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
+-->
+
 # CLAUDE.md
 
 This repository vendors the Miniforge engineering rules as a git submodule
 at `standards/miniforge/`. Load them before any task. A fresh clone needs
-`git submodule update --init --recursive` for that directory to exist.
+`git submodule update --init --recursive` for that directory to exist; the
+submodule is public, so this works without credentials.
 
 ## Entry points
 
@@ -21,9 +28,13 @@ product, not Thesium). It never links a product's domain crate.
 
 ## Conventions (the ones that bite)
 
-- **Proprietary, not OSS** — proprietary file headers (Title / Subtitle /
-  Author / Copyright, all rights reserved), `license = "Proprietary"`. Do
-  NOT apply Apache-2.0 headers (`project/header-copyright` is skipped here).
+- **Apache-2.0, open source** — every file carries the Apache-2.0 header
+  (Title / Subtitle / Author / Copyright, then the standard notice), and
+  `license = "Apache-2.0"`. `project/header-copyright` (810) applies here;
+  it did not while this repo was proprietary. Minibench is Miniforge
+  infrastructure, not a Thesium product — the Thesium apps stay
+  proprietary and this repo must never take on their license or link
+  their domain crates.
 - **Rust** per `languages/rust` (230) + `project/rust-miniforge-shape`
   (835): edition 2024, `unsafe_code = "forbid"`, clippy `all = "deny"`,
   user-facing text in `strings.rs`, typed state, **pure kernel** (Domain

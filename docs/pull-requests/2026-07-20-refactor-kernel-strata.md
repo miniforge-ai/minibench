@@ -2,7 +2,19 @@
   Title: Minibench
   Subtitle: PR doc — refactor/kernel-strata
   Author: Christopher Lester
-  Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai). All rights reserved.
+  Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai)
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+     http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
 -->
 
 # refactor: split kernel lib.rs into stratified modules
@@ -87,4 +99,4 @@ green; clippy clean; strict lint exit 0 across all nine modules.
 - [x] Public API byte-compatible (`pub use` re-exports, consumers untouched)
 - [x] All tests green, fmt + clippy clean
 - [x] stratum-lint-rs clean, coverage verified non-vacuous
-- [x] Proprietary headers on all new files
+- [x] License headers on all new files (proprietary at the time; relicensed Apache-2.0 in the OSS scrub)
