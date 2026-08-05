@@ -685,10 +685,13 @@ fn validate_treats_waived_must_include_rules_as_no_requirements() {
 #[test]
 fn validate_flags_below_min_count() {
     let snap = opus_snapshot();
+    // One more than the fixture carries, so a fixture regen that adds
+    // refs cannot silently satisfy the requirement under test.
+    let demanded = snap.evaluations[0].evidence_refs.len() as u32 + 1;
     let registry = registry_with_requirements(
         &snap,
         EvidenceRequirements {
-            min_count: Some(3),
+            min_count: Some(demanded),
             ..no_requirements()
         },
     );
@@ -721,11 +724,11 @@ fn validate_accepts_min_count_met() {
 fn validate_matches_required_refs_against_source_role() {
     let snap = opus_snapshot();
     // "LensVerdict" must match the fixture's kebab-case source role
-    // "lens-verdict"; "Claim" has no matching ref.
+    // "lens-verdict"; "DataQualityReport" has no matching ref.
     let registry = registry_with_requirements(
         &snap,
         EvidenceRequirements {
-            required_refs: vec!["LensVerdict".to_string(), "Claim".to_string()],
+            required_refs: vec!["LensVerdict".to_string(), "DataQualityReport".to_string()],
             ..no_requirements()
         },
     );
@@ -737,7 +740,7 @@ fn validate_matches_required_refs_against_source_role() {
         vec![EvidenceViolationKind::MissingRequiredRef]
     );
     assert!(
-        report.violations[0].message.contains("Claim"),
+        report.violations[0].message.contains("DataQualityReport"),
         "the unmatched entry is named"
     );
 }
@@ -757,10 +760,7 @@ fn validate_flags_refs_missing_a_required_hash() {
 
     assert_eq!(
         violation_kinds(&report),
-        vec![
-            EvidenceViolationKind::MissingHash,
-            EvidenceViolationKind::MissingHash
-        ],
+        vec![EvidenceViolationKind::MissingHash; snap.evaluations[0].evidence_refs.len()],
         "one violation per hashless ref"
     );
 
@@ -808,10 +808,7 @@ fn validate_flags_missing_created_at_under_a_freshness_sla() {
 
     assert_eq!(
         violation_kinds(&report),
-        vec![
-            EvidenceViolationKind::MissingCreatedAt,
-            EvidenceViolationKind::MissingCreatedAt
-        ],
+        vec![EvidenceViolationKind::MissingCreatedAt; snap.evaluations[0].evidence_refs.len()],
         "an SLA without a timestamp is unverifiable, so strict"
     );
 }
@@ -826,15 +823,17 @@ fn validate_applies_the_freshness_sla_at_evaluated_at() {
             ..no_requirements()
         },
     );
-    // The fixture evaluates at 2026-06-10T16:07:46Z; same-day refs
-    // are inside a 24h SLA.
+    // Refs stamped at the evaluation instant are trivially inside any
+    // SLA. Read the instant off the fixture rather than pinning a date:
+    // `bb regen-fixtures` restamps `evaluated_at` with the wall clock.
+    let evaluated_at = snap.evaluations[0].evaluated_at.clone();
     for evidence_ref in &mut snap.evaluations[0].evidence_refs {
-        evidence_ref.created_at = Some("2026-06-10T00:00:00Z".to_string());
+        evidence_ref.created_at = Some(evaluated_at.clone());
     }
     let report = validate(&snap, &registry).expect("matching registry");
     assert!(report.is_clean());
 
-    snap.evaluations[0].evidence_refs[0].created_at = Some("2026-06-01T00:00:00Z".to_string());
+    snap.evaluations[0].evidence_refs[0].created_at = Some("2020-01-01T00:00:00Z".to_string());
     let report = validate(&snap, &registry).expect("matching registry");
     assert_eq!(
         violation_kinds(&report),
@@ -887,6 +886,91 @@ fn validate_flags_declared_requirements_with_zero_refs() {
 }
 
 #[test]
+fn validate_exempts_not_applicable_with_zero_refs() {
+    let mut snap = opus_snapshot();
+    let registry = registry_with_requirements(
+        &snap,
+        EvidenceRequirements {
+            required_refs: vec!["DataQualityReport".to_string()],
+            min_count: Some(0),
+            must_include_source_role: Some(true),
+            ..no_requirements()
+        },
+    );
+    snap.evaluations[0].status = StateStatus::NotApplicable;
+    snap.evaluations[0].evidence_refs.clear();
+
+    let report = validate(&snap, &registry).expect("matching registry");
+
+    assert!(
+        report.is_clean(),
+        "a variable that does not apply has nothing to evidence"
+    );
+}
+
+#[test]
+fn validate_checks_refs_carried_by_not_applicable_evaluations() {
+    let mut snap = opus_snapshot();
+    let registry = registry_with_requirements(
+        &snap,
+        EvidenceRequirements {
+            must_include_hash: Some(true),
+            ..no_requirements()
+        },
+    );
+    snap.evaluations[0].status = StateStatus::NotApplicable;
+
+    let report = validate(&snap, &registry).expect("matching registry");
+
+    assert_eq!(
+        violation_kinds(&report),
+        vec![EvidenceViolationKind::MissingHash; snap.evaluations[0].evidence_refs.len()],
+        "refs present on a not_applicable evaluation still get per-rule checks"
+    );
+}
+
+#[test]
+fn validate_treats_min_count_zero_as_waiver() {
+    let mut snap = opus_snapshot();
+    let registry = registry_with_requirements(
+        &snap,
+        EvidenceRequirements {
+            min_count: Some(0),
+            ..no_requirements()
+        },
+    );
+    snap.evaluations[0].status = StateStatus::Fail;
+    snap.evaluations[0].evidence_refs.clear();
+
+    let report = validate(&snap, &registry).expect("matching registry");
+
+    assert!(report.is_clean(), "Some(0) waives, not requires");
+}
+
+#[test]
+fn validate_min_count_zero_does_not_waive_required_refs_for_scored_statuses() {
+    let mut snap = opus_snapshot();
+    let registry = registry_with_requirements(
+        &snap,
+        EvidenceRequirements {
+            required_refs: vec!["DataQualityReport".to_string()],
+            min_count: Some(0),
+            ..no_requirements()
+        },
+    );
+    snap.evaluations[0].status = StateStatus::Fail;
+    snap.evaluations[0].evidence_refs.clear();
+
+    let report = validate(&snap, &registry).expect("matching registry");
+
+    assert_eq!(
+        violation_kinds(&report),
+        vec![EvidenceViolationKind::MissingEvidence],
+        "a scored evaluation still owes its required ref types"
+    );
+}
+
+#[test]
 fn validate_flags_pass_with_zero_refs_even_without_requirements() {
     let mut snap = opus_snapshot();
     let registry = registry_for_snapshot(&snap);
@@ -935,4 +1019,204 @@ fn validate_rejects_wrong_registry_product() {
     let err = validate(&snap, &registry).expect_err("wrong product rejected");
 
     assert!(matches!(err, ValidateError::RegistryProductMismatch { .. }));
+}
+
+fn correction_for_grounded_cell(
+    expected_status: StateStatus,
+    expected_score: Option<f64>,
+) -> CorrectionV1 {
+    CorrectionV1 {
+        experiment_id: "career.lens.acme-l4-eval".to_string(),
+        variant_label: "opus+semantic".to_string(),
+        state_var_id: "career.lens.report_grounded".to_string(),
+        expected_status,
+        expected_score,
+        rationale: "reviewed the verdicts; this is the accepted read".to_string(),
+        corrected_by: "reviewer@test".to_string(),
+        corrected_at: "2026-07-19T00:00:00Z".to_string(),
+        snapshot_id: Some("wb-opus+semantic".to_string()),
+    }
+}
+
+#[test]
+fn correction_flips_a_regression_into_accepted() {
+    let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/opus-semantic.json"
+    ))
+    .expect("decode baseline");
+    let mut current = baseline.clone();
+    current.evaluations[0].status = StateStatus::Fail;
+    current.evaluations[0].score = 0.10;
+
+    // Raw baseline flags the drop; the human-labeled expectation
+    // accepts it, and the report records the provenance.
+    let raw = diff(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+    );
+    assert_eq!(raw.regressions.len(), 1);
+
+    let corrections = CorrectionSet::new(vec![correction_for_grounded_cell(
+        StateStatus::Fail,
+        Some(0.10),
+    )])
+    .expect("valid correction");
+    let report = diff_with_corrections(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+        &corrections,
+    );
+
+    assert!(report.is_clean());
+    assert!(report.stale.is_empty());
+    assert_eq!(
+        report.applied,
+        vec![correction_for_grounded_cell(StateStatus::Fail, None).key()]
+    );
+}
+
+#[test]
+fn correction_raises_the_bar_above_the_raw_baseline() {
+    let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/opus-semantic.json"
+    ))
+    .expect("decode baseline");
+    let current = baseline.clone();
+
+    // Identical current passes the raw baseline (0.88 pass)...
+    assert!(
+        diff(
+            std::slice::from_ref(&baseline),
+            std::slice::from_ref(&current)
+        )
+        .is_clean()
+    );
+
+    // ...but fails the corrected expectation of a 0.95 floor.
+    let corrections = CorrectionSet::new(vec![correction_for_grounded_cell(
+        StateStatus::Pass,
+        Some(0.95),
+    )])
+    .expect("valid correction");
+    let report = diff_with_corrections(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+        &corrections,
+    );
+
+    assert!(!report.is_clean());
+    assert_eq!(report.regressions.len(), 1);
+    let regression = &report.regressions[0];
+    assert!(regression.corrected);
+    assert_eq!(regression.expected_status, StateStatus::Pass);
+    assert_eq!(regression.expected_score, Some(0.95));
+    assert_eq!(regression.current_status, StateStatus::Pass);
+}
+
+#[test]
+fn status_only_correction_keeps_the_baseline_score_floor() {
+    let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/opus-semantic.json"
+    ))
+    .expect("decode baseline");
+    let mut current = baseline.clone();
+    current.evaluations[0].score = 0.50;
+
+    // The correction overrides only the status; the 0.88 baseline
+    // score remains the floor, so the drop to 0.50 still regresses.
+    let corrections =
+        CorrectionSet::new(vec![correction_for_grounded_cell(StateStatus::Pass, None)])
+            .expect("valid correction");
+    let report = diff_with_corrections(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+        &corrections,
+    );
+
+    assert_eq!(report.regressions.len(), 1);
+    assert_eq!(report.regressions[0].expected_score, Some(0.88));
+}
+
+#[test]
+fn stale_correction_surfaces_as_a_warning_not_a_failure() {
+    let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/opus-semantic.json"
+    ))
+    .expect("decode baseline");
+    let mut stale = correction_for_grounded_cell(StateStatus::Pass, None);
+    stale.state_var_id = "career.lens.renamed_away".to_string();
+
+    let corrections = CorrectionSet::new(vec![stale.clone()]).expect("valid correction");
+    let same = std::slice::from_ref(&baseline);
+    let report = diff_with_corrections(same, same, &corrections);
+
+    assert!(report.is_clean(), "stale corrections warn, never fail");
+    assert!(report.applied.is_empty());
+    assert_eq!(report.stale, vec![stale.key()]);
+}
+
+#[test]
+fn duplicate_correction_keys_are_a_load_error() {
+    let first = correction_for_grounded_cell(StateStatus::Pass, None);
+    let second = correction_for_grounded_cell(StateStatus::Fail, Some(0.10));
+
+    let err = CorrectionSet::new(vec![first, second]).expect_err("duplicate key rejected");
+
+    assert!(matches!(err, CorrectionError::DuplicateKey { .. }));
+}
+
+#[test]
+fn correction_without_a_rationale_is_refused() {
+    let mut correction = correction_for_grounded_cell(StateStatus::Pass, None);
+    correction.rationale = "   ".to_string();
+
+    let err = CorrectionSet::new(vec![correction]).expect_err("blank rationale refused");
+
+    assert!(matches!(err, CorrectionError::EmptyRationale { .. }));
+}
+
+#[test]
+fn correction_against_committed_baseline_changes_the_diff_outcome() {
+    // A correction accepting a 0.40 grounding floor for the mechanical
+    // variant (committed baseline reads 0.43). A current run at 0.41
+    // regresses against the raw baseline but passes the labeled
+    // expectation — the correction demonstrably changes the outcome.
+    // Constructed in-test: a committed correction is a recorded human
+    // judgment, so none ships until a human has actually made one.
+    let correction: CorrectionV1 = serde_json::from_str(
+        r#"{
+          "experiment_id": "career.lens.acme-l4-eval",
+          "variant_label": "haiku+mechanical",
+          "state_var_id": "career.lens.report_grounded",
+          "expected_status": "fail",
+          "expected_score": 0.4,
+          "rationale": "test-local example: accepted grounding floor for the mechanical method",
+          "corrected_by": "test@example.com",
+          "corrected_at": "2026-07-19T00:00:00Z",
+          "snapshot_id": "wb-haiku+mechanical"
+        }"#,
+    )
+    .expect("decode correction");
+    let corrections = CorrectionSet::new(vec![correction]).expect("valid correction");
+    let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/baseline/haiku-mechanical.json"
+    ))
+    .expect("decode baseline");
+    let mut current = baseline.clone();
+    current.evaluations[0].score = 0.41;
+
+    let raw = diff(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+    );
+    assert_eq!(raw.regressions.len(), 1, "raw baseline flags 0.41 < 0.43");
+
+    let report = diff_with_corrections(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+        &corrections,
+    );
+    assert!(report.is_clean(), "corrected floor 0.40 accepts 0.41");
+    assert_eq!(report.applied.len(), 1);
+    assert!(report.stale.is_empty());
 }

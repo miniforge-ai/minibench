@@ -75,3 +75,6 @@ jobs:
 
       - name: Regression gate
         run: bb regression-gate
+
+      - name: Evidence validation gate
+        run: bb validate-gate

@@ -17,7 +17,7 @@ use crate::snapshot::{experiment_id, variant_label};
 
 /// Severity rank for the comparable statuses (lower is healthier); `None`
 /// for statuses that don't sit on the pass→blocked axis.
-fn severity(status: StateStatus) -> Option<u8> {
+pub(crate) fn severity(status: StateStatus) -> Option<u8> {
     match status {
         StateStatus::Pass => Some(0),
         StateStatus::Warn => Some(1),
@@ -55,7 +55,7 @@ impl RegressionReport {
 
 /// A score below baseline by more than this is a regression; the epsilon
 /// absorbs float round-trip noise (snapshots carry 2-dp scores).
-const SCORE_REGRESSION_EPSILON: f64 = 1e-9;
+pub(crate) const SCORE_REGRESSION_EPSILON: f64 = 1e-9;
 
 // ------------------------------------------------------------------ Layer 1
 

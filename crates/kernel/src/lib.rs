@@ -22,6 +22,7 @@
 
 mod checks;
 mod compare;
+mod corrections;
 mod evidence;
 mod provenance;
 mod regression;
@@ -33,6 +34,10 @@ mod violations;
 use workbench_contract::{StateVarRegistry, WorkbenchSnapshotV1};
 
 pub use compare::{CompareError, CompareWarning, ComparisonCell, ComparisonMatrix, ComparisonRow};
+pub use corrections::{
+    CorrectedDiffReport, CorrectedRegression, CorrectionError, CorrectionKey, CorrectionSet,
+    CorrectionV1, diff_with_corrections,
+};
 pub use evidence::{ValidateError, ValidationReport, validate};
 pub use regression::{Regression, RegressionReport, diff};
 pub use stats::SpreadSignal;

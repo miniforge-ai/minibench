@@ -87,10 +87,11 @@ impl std::error::Error for ValidateError {}
 
 /// True when the state variable declares ANY evidence requirement. A
 /// `must_include_*` of `Some(false)` explicitly waives that rule, so it
-/// does not count as a declared requirement.
+/// does not count as a declared requirement; likewise `min_count` of
+/// `Some(0)` — an explicit "zero refs acceptable", not a demand.
 fn declares_requirements(requirements: &EvidenceRequirements) -> bool {
     !requirements.required_refs.is_empty()
-        || requirements.min_count.is_some()
+        || requirements.min_count.is_some_and(|count| count > 0)
         || requirements.must_include_hash == Some(true)
         || requirements.must_include_source_role == Some(true)
         || requirements.freshness_sla_hours.is_some()
@@ -113,7 +114,8 @@ fn validate_evaluation(
                 "status pass with no evidence refs".to_string(),
             ));
         }
-        if declares_requirements(requirements) {
+        let makes_claim = evaluation.status != StateStatus::NotApplicable;
+        if makes_claim && declares_requirements(requirements) {
             violations.push(violation(
                 evaluation,
                 EvidenceViolationKind::MissingEvidence,

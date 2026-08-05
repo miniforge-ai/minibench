@@ -20,7 +20,11 @@ use workbench_contract::StateEvaluation;
 #[serde(rename_all = "snake_case")]
 pub enum EvidenceViolationKind {
     /// The state variable declares evidence requirements but the
-    /// evaluation carries zero evidence refs.
+    /// evaluation carries zero evidence refs. `not_applicable`
+    /// evaluations are exempt: the requirements describe what a SCORED
+    /// evaluation must cite, and a variable that does not apply has
+    /// nothing to evidence — demanding refs there would push adapters
+    /// toward fabricating them.
     MissingEvidence,
     /// The evaluation reports `pass` with zero evidence refs — the
     /// "no high confidence without evidence" invariant, enforced even

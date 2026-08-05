@@ -9,7 +9,8 @@ use workbench_contract::{StateVarRegistry, WorkbenchSnapshotV1};
 const BASELINE_JSON: &str = include_str!("../../../fixtures/miniforge-etl/variants/baseline.json");
 const CANDIDATE_JSON: &str =
     include_str!("../../../fixtures/miniforge-etl/variants/incremental.json");
-const REGISTRY_JSON: &str = include_str!("../../../fixtures/miniforge-etl/registry.json");
+const REGISTRY_JSON: &str =
+    include_str!("../../../fixtures/registries/miniforge-etl-state-vars.json");
 
 #[test]
 fn compares_real_miniforge_etl_adapter_snapshots() {

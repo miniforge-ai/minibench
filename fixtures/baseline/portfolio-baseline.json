@@ -5,14 +5,14 @@
     "label" : "baseline",
     "model" : "risk-pipeline"
   },
-  "run_id" : "run-baseline",
-  "generated_at" : "2026-06-10T16:07:52.204698Z",
+  "run_id" : "run-baseline-20260720T065608Z",
+  "generated_at" : "2026-07-20T06:56:08.234475Z",
   "signature" : {
     "algorithm" : "sha256",
     "digest" : "0000000000000000000000000000000000000000000000000000000000000000",
     "canonicalization" : "json-c14n/1"
   },
-  "snapshot_id" : "wb-portfolio-baseline",
+  "snapshot_id" : "wb-portfolio-baseline-20260720T065608Z",
   "entities" : {
     "portfolio.readiness" : {
       "lens-count" : 2,
@@ -24,7 +24,11 @@
   "evaluations" : [ {
     "findings" : [ ],
     "state_var_id" : "portfolio.lens.validation_readiness",
-    "evidence_refs" : [ ],
+    "evidence_refs" : [ {
+      "id" : "portfolio.lens-validation-readiness",
+      "source_role" : "lens-validation-readiness",
+      "quote" : "gate passed, 2/2 lenses ready"
+    } ],
     "value" : "ready",
     "gate_effect" : "none",
     "score_components" : {
@@ -35,12 +39,17 @@
     "product" : "portfolio",
     "status" : "pass",
     "score" : 1.0,
-    "evaluated_at" : "2026-06-10T16:07:52.204698Z",
+    "evaluated_at" : "2026-07-20T06:56:08.234475Z",
     "confidence" : 0.95
   }, {
     "findings" : [ ],
     "state_var_id" : "portfolio.data.fidelity_gate",
-    "evidence_refs" : [ ],
+    "evidence_refs" : [ {
+      "id" : "portfolio.source.readiness",
+      "source_role" : "source-provenance",
+      "quote" : "/Users/chris/ws/miniforge.ai/minibench/fixtures/inputs/portfolio-readiness.json",
+      "hash" : "sha256:2ffab2800585d1a917c5361d861539828c03e251da57ee81eade714a94fe663f"
+    } ],
     "value" : true,
     "gate_effect" : "none",
     "score_components" : {
@@ -51,11 +60,14 @@
     "product" : "portfolio",
     "status" : "pass",
     "score" : 1.0,
-    "evaluated_at" : "2026-06-10T16:07:52.204698Z",
+    "evaluated_at" : "2026-07-20T06:56:08.234475Z",
     "confidence" : 0.95
   } ],
   "registry_ref" : {
     "registry_id" : "portfolio-state-vars",
     "version" : "2026.06.06.1"
+  },
+  "metadata" : {
+    "emitter" : "portfolio-workbench-cli"
   }
 }

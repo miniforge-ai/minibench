@@ -7,13 +7,22 @@
 ;; with lower evidence-confidence — the weaker model/method grounds less,
 ;; so the projection drops below threshold and the grounding row FAILS.
 ;; This divergence (pass vs fail) is the whole point of the permutation matrix.
+;; Both verdicts cite the same synthetic claim: the weaker method found
+;; less backing, and the shared claim exercises the adapter's dedupe
+;; (one Claim ref despite two citations).
 {:report/lens-id :acme-engineering
  :report/framework-id :acme-engineering
  :report/output-mode :clause-level
  :report/verdicts
  [{:verdict/dimension :technical-execution
    :verdict/level :l2
+   :verdict/claims
+   [{:claim/id "claim.acme.pipeline-rollout"
+     :claim/text "Led the phased rollout of the evaluation pipeline"}]
    :verdict/envelope {:envelope/evidence-confidence 0.5}}
   {:verdict/dimension :technical-execution
    :verdict/level :l3
+   :verdict/claims
+   [{:claim/id "claim.acme.pipeline-rollout"
+     :claim/text "Led the phased rollout of the evaluation pipeline"}]
    :verdict/envelope {:envelope/evidence-confidence 0.35}}]}

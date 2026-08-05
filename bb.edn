@@ -42,4 +42,9 @@
    :task (shell (str "cargo run -q -p minibench-cli -- diff fixtures/baseline fixtures/experiments"
                      (if (fs/exists? "fixtures/corrections")
                        " --corrections fixtures/corrections"
-                       "")))}}}
+                       "")))}
+
+  validate-gate
+  {:doc "Fail if any committed fixture snapshot's evidence refs fall short of its registry's evidence_requirements, names a registry with no copy in fixtures/registries/, or cannot be read. Aggregates every failure, then exits 1."
+   :requires ([validate])
+   :task (validate/gate!)}}}
