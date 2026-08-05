@@ -134,10 +134,12 @@ impl CorrectionSet {
         Ok(Self { by_key })
     }
 
+    /// True when no cell carries a human correction.
     pub fn is_empty(&self) -> bool {
         self.by_key.is_empty()
     }
 
+    /// How many cells carry a human correction.
     pub fn len(&self) -> usize {
         self.by_key.len()
     }
