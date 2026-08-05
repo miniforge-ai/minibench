@@ -43,10 +43,10 @@ tokio = { version = "1", features = ["macros", "rt-multi-thread", "net"] }
 async-trait = "0.1"
 tower = { version = "0.4", features = ["util"] }
 
-# Sibling repos pinned to published git revs — self-contained, no sibling
-# checkout required. .cargo/config sets net.git-fetch-with-cli for private
-# SSH fetch. Bump the revs to adopt upstream changes.
-thesium-app-foundation-contracts = { git = "ssh://git@github.com/miniforge-ai/thesium-app-foundation.git", rev = "20eaee2621694964a780282b5ee35ad496fb84d1" }
-thesium-app-foundation-data-plane = { git = "ssh://git@github.com/miniforge-ai/thesium-app-foundation.git", rev = "20eaee2621694964a780282b5ee35ad496fb84d1" }
-workbench-contract = { git = "ssh://git@github.com/miniforge-ai/workbench-contract.git", rev = "5212f32ed9bdbfbc982e9ff746352c2f190d8e12" }
+# The public seam, pinned to a published git rev over HTTPS — no
+# credentials, no sibling checkout, no cargo config. Bump the rev to
+# adopt upstream changes.
+miniforge-app-foundation-contracts = { git = "https://github.com/miniforge-ai/miniforge-app-foundation.git", rev = "7ce4a41932a2ea0036d8741fe69a661c270cd6af" }
+miniforge-app-foundation-data-plane = { git = "https://github.com/miniforge-ai/miniforge-app-foundation.git", rev = "7ce4a41932a2ea0036d8741fe69a661c270cd6af" }
+workbench-contract = { git = "https://github.com/miniforge-ai/miniforge-app-foundation.git", rev = "7ce4a41932a2ea0036d8741fe69a661c270cd6af" }
 minibench-kernel = { path = "crates/kernel" }

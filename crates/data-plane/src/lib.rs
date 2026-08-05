@@ -17,9 +17,9 @@
 
 //! Minibench's wiring of the shared `DataPlaneProvider`. Snapshots are
 //! exchanged as opaque JSON `Value` (the foundation contract); the
-//! bodies are `WorkbenchSnapshotV1` per `workbench-contract`. Minibench
-//! is the third consumer of `thesium-app-foundation`, after risk and
-//! career — proving the foundation's domain-neutral claim.
+//! bodies are `WorkbenchSnapshotV1` per `workbench-contract`. Both come
+//! from `miniforge-app-foundation`, the public seam; this crate is its
+//! worked example of a `DataPlaneProvider`.
 
 pub mod strings;
 
@@ -33,12 +33,12 @@ use axum::http::StatusCode;
 use axum::routing::get;
 use axum::{Extension, Json, Router};
 use minibench_kernel::{CompareError, ComparisonMatrix, compare};
-use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use thesium_app_foundation_contracts::{
+use miniforge_app_foundation_contracts::{
     APP_CONFIG_V1, AppConfigV1, DistributionV1, LicenseValidationResponseV1,
 };
-use thesium_app_foundation_data_plane::{DataPlaneProvider, build_router};
+use miniforge_app_foundation_data_plane::{DataPlaneProvider, build_router};
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use workbench_contract::WorkbenchSnapshotV1;
 
 /// Snapshot timestamp field used by the foundation envelope.
