@@ -1,3 +1,9 @@
+<!--
+  Title: Minibench
+  Author: Christopher Lester (christopher@miniforge.ai)
+  Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
+-->
+
 # AGENTS.md
 
 `minibench` — the workbench app shell. Hosts (data plane), summarizes
@@ -25,12 +31,16 @@ that product adapters emit.
 
 ## Standards
 
-Follows the miniforge engineering standards (+ Thesium proprietary
-header, since it ships with Thesium tenants). Load
-`miniforge-standards/index.mdc` first, then `thesium-standards/index.mdc`.
-Relevant: 006 named-constants, Rust `strings.rs` rule, 715
-pre-commit-discipline, 716 tests-with-code, 810 proprietary header.
-Standards submodules to be vendored under `standards/` in a follow-up.
+Follows the Miniforge engineering standards, vendored as a public
+submodule at `standards/miniforge/`; load
+`standards/miniforge/index.mdc` first. Relevant: 006 named-constants,
+Rust `strings.rs` rule, 715 pre-commit-discipline, 716 tests-with-code,
+810 header-copyright (the Apache-2.0 header — this repo is Apache-2.0).
+
+Minibench is Miniforge infrastructure and open source. The Thesium
+products that plug into it are proprietary and live in private repos;
+nothing here may take on their license, vendor their standards, or link
+their domain crates.
 
 ## Adding to the kernel
 

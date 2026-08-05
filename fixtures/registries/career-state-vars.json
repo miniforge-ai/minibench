@@ -12,9 +12,15 @@
       "kind": "quality",
       "description": "Every lens verdict in the report carries a common-envelope projection backed by portfolio claim evidence rather than ungrounded assertion.",
       "value_type": "number",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["LensVerdict", "Claim"],
+        "required_refs": [
+          "LensVerdict",
+          "Claim"
+        ],
         "min_count": 1,
         "must_include_source_role": true
       },
@@ -30,8 +36,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "phase-thesium-career",
-      "notes": "Projects LensReport verdicts (lens_v2.clj LensCommonEnvelope: current-capability, target-readiness, evidence-confidence, blocker-class)."
+      "owner": "career",
+      "notes": "Share of the report's verdicts that carry an evidence-confidence envelope above the grounding floor."
     },
     {
       "id": "career.lens.evidence_sufficiency",
@@ -39,11 +45,16 @@
       "product": "career",
       "area": "lens",
       "kind": "sufficiency",
-      "description": "Evidence is sufficient — not merely present — for each scored projection's must/should clauses.",
+      "description": "Evidence is sufficient \u2014 not merely present \u2014 for each scored projection's must/should clauses.",
       "value_type": "number",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["LensVerdict"],
+        "required_refs": [
+          "LensVerdict"
+        ],
         "min_count": 1,
         "must_include_source_role": true
       },
@@ -59,8 +70,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "phase-thesium-career",
-      "notes": "Mirrors LensEnginePolicy strong-should-floor / envelope-threshold bucketing."
+      "owner": "career",
+      "notes": "Whether each scored dimension cites enough evidence to clear the lens policy's sufficiency floor."
     },
     {
       "id": "career.claim.evidence_traceability",
@@ -70,9 +81,15 @@
       "kind": "integrity",
       "description": "Each portfolio claim traces to evidence refs with a source and grounding score above the configured floor.",
       "value_type": "number",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["Claim", "EvidenceRef"],
+        "required_refs": [
+          "Claim",
+          "EvidenceRef"
+        ],
         "min_count": 1,
         "must_include_source_role": true
       },
@@ -88,8 +105,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "phase-thesium-career",
-      "notes": "Projects Claim (core.clj :claim/grounding-score, :claim/evidence) and the grounding validator."
+      "owner": "career",
+      "notes": "Share of claims whose grounding score traces to at least one cited evidence item."
     },
     {
       "id": "career.oracle.reproduction_delta",
@@ -99,9 +116,15 @@
       "kind": "regression",
       "description": "A generated growth report reproduces the canonical oracle: current/target status agree and evidence overlaps, row by row.",
       "value_type": "number",
-      "thresholds": { "pass": 0.85, "warn": 0.65 },
+      "thresholds": {
+        "pass": 0.85,
+        "warn": 0.65
+      },
       "evidence_requirements": {
-        "required_refs": ["GrowthReport", "Oracle"],
+        "required_refs": [
+          "GrowthReport",
+          "Oracle"
+        ],
         "min_count": 1
       },
       "score_components": [
@@ -118,8 +141,8 @@
         "blocked": "requires_reingest"
       },
       "lifecycle": "draft",
-      "owner": "career-growth-cli",
-      "notes": "Projects ai.thesium.career-growth-cli.growth-oracle-eval/evaluate :oracle-eval/summary (status-match rates, evidence overlap, missing/extra rows)."
+      "owner": "career",
+      "notes": "Agreement between a re-run and its recorded oracle: status-match rate, evidence overlap, and rows present in one run but not the other."
     }
   ]
 }

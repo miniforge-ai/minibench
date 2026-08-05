@@ -1,3 +1,9 @@
+<!--
+  Title: Minibench
+  Author: Christopher Lester (christopher@miniforge.ai)
+  Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
+-->
+
 # Minibench
 
 The workbench **app shell**: hosts and renders the cross-product state
@@ -44,6 +50,12 @@ synthetic, non-personal inputs in `fixtures/inputs/` and writes:
 bb regen-fixtures            # needs a thesium-workflows checkout + babashka
 cargo run -p minibench-cli -- compare fixtures/experiments
 ```
+
+`thesium-workflows` is a closed-source product repository, so
+`bb regen-fixtures` is not runnable outside Miniforge. The fixtures it
+produces are committed here, and everything else — the gates, the
+kernel, the CLI, the shell — runs against those committed fixtures with
+no private access. Nothing in the test suite or in CI calls `regen`.
 
 `fixtures/sample-snapshot.json` remains the hand-written Miniforge
 orchestration example. The product-owned Miniforge ETL adapter now supplies a
@@ -105,13 +117,17 @@ being skipped. CI runs this after the regression gate.
 bb validate-gate      # minibench validate <snapshot> fixtures/registries/<id>.json, per snapshot
 ```
 
-The registry copies under `fixtures/registries/` are pinned duplicates
-of the product repos' registries (career, portfolio, and miniforge from
+The registry copies under `fixtures/registries/` are pinned against the
+product repos' registries (career, portfolio, and miniforge from
 `workbench-contract/fixtures/`, plus the miniforge-etl registry the ETL
-adapter fixtures name); `validate` verifies
-registry_id/version/product against each snapshot, so an upstream
-version bump fails loudly here instead of validating against a stale
-yardstick.
+adapter fixtures name); `validate` verifies registry_id/version/product
+against each snapshot, so an upstream version bump fails loudly here
+instead of validating against a stale yardstick. The scored fields —
+ids, thresholds, evidence requirements, gate effects — match upstream
+exactly, since those are what the gate reads. The free-text `notes` and
+`owner` fields do not: for the two tenants whose products are closed
+source, they describe what the state variable measures rather than
+pointing into a repository you cannot read.
 
 ## Registry-aware compare
 
@@ -155,4 +171,5 @@ all the same foundation router.
 
 ## License
 
-Proprietary. © 2025–2026 Christopher Lester (christopher@miniforge.ai).
+Apache-2.0. Copyright 2025–2026 Christopher Lester
+(christopher@miniforge.ai). See [LICENSE](LICENSE).

@@ -1,3 +1,9 @@
+<!--
+  Title: Minibench
+  Author: Christopher Lester (christopher@miniforge.ai)
+  Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
+-->
+
 # feat: expose confidence ranges in comparison rows
 
 ## Overview

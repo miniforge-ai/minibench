@@ -1,3 +1,9 @@
+<!--
+  Title: Minibench
+  Author: Christopher Lester (christopher@miniforge.ai)
+  Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
+-->
+
 # feat: live tenant feeds — fixtures from the real adapters + regen task
 
 ## Overview
@@ -71,5 +77,5 @@ N/A — dev/demo fixtures and tooling only.
 - [x] bb-over-shell (740): shell script replaced by a bb task; `.sh` deleted.
 - [x] PR doc (721) present.
 - [x] Pre-commit gate green; not bypassed.
-- [x] Proprietary headers on new files.
+- [x] License headers on new files (proprietary at the time; relicensed Apache-2.0 in the OSS scrub).
 - [x] Synthetic fixtures only — no real tenant data.
