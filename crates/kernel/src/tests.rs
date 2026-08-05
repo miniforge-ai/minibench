@@ -1181,8 +1181,9 @@ fn correction_against_committed_baseline_changes_the_diff_outcome() {
     // variant (committed baseline reads 0.43). A current run at 0.41
     // regresses against the raw baseline but passes the labeled
     // expectation — the correction demonstrably changes the outcome.
-    // Constructed in-test: a committed correction is a recorded human
-    // judgment, so none ships until a human has actually made one.
+    // Constructed in-test so the assertion owns its own inputs; the
+    // shipped correction for this same cell is exercised separately by
+    // `committed_correction_fixture_targets_a_live_cell`.
     let correction: CorrectionV1 = serde_json::from_str(
         r#"{
           "experiment_id": "career.lens.acme-l4-eval",
@@ -1219,4 +1220,50 @@ fn correction_against_committed_baseline_changes_the_diff_outcome() {
     assert!(report.is_clean(), "corrected floor 0.40 accepts 0.41");
     assert_eq!(report.applied.len(), 1);
     assert!(report.stale.is_empty());
+}
+
+#[test]
+fn committed_correction_fixture_targets_a_live_cell() {
+    // The correction shipped under fixtures/corrections is what `bb
+    // regression-gate` loads in CI. Its key is three strings that no
+    // compiler checks: rename the state variable, relabel the variant, or
+    // retire the experiment, and the correction silently becomes a
+    // no-op that the gate reports only as a `stale` warning. Pin it to
+    // the committed fixtures here so that drift fails the build instead.
+    let correction: CorrectionV1 = serde_json::from_str(include_str!(concat!(
+        "../../../fixtures/corrections/",
+        "career.lens.acme-l4-eval__haiku-mechanical__career.lens.report_grounded.json"
+    )))
+    .expect("decode committed correction");
+    let corrections = CorrectionSet::new(vec![correction]).expect("valid committed correction");
+    let baseline: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/baseline/haiku-mechanical.json"
+    ))
+    .expect("decode baseline");
+    let current: WorkbenchSnapshotV1 = serde_json::from_str(include_str!(
+        "../../../fixtures/experiments/haiku-mechanical.json"
+    ))
+    .expect("decode current");
+
+    let report = diff_with_corrections(
+        std::slice::from_ref(&baseline),
+        std::slice::from_ref(&current),
+        &corrections,
+    );
+
+    assert!(
+        report.stale.is_empty(),
+        "committed correction matches no cell in the committed fixtures: {:?}",
+        report.stale
+    );
+    assert_eq!(
+        report.applied.len(),
+        1,
+        "the gate should judge exactly one cell against the committed correction"
+    );
+    assert!(
+        report.is_clean(),
+        "committed fixtures must pass the committed correction: {:?}",
+        report.regressions
+    );
 }

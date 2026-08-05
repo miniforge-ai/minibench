@@ -64,6 +64,22 @@ kernel-local until then.
   actually made one. The demonstration lives in a kernel test that
   constructs the correction in-test against the committed baseline.
 
+> **Amendment (2026-08-04).** Two corrections to the bullet above, both
+> settled by `2026-08-04-feat-commit-corrections-fixture.md`:
+>
+> - "ships empty" was never literally true. Git does not track empty
+>   directories, so `fixtures/corrections/` did not ship at all, and the
+>   `fs/exists?` guard in `regression-gate` never fired. The consequence
+>   was larger than "no-op": between this PR and 2026-08-04, CI never
+>   executed `diff_with_corrections`. The corrected-diff path was covered
+>   by kernel unit tests only, never end-to-end through the CLI.
+> - The withholding rule — no committed correction until a human has made
+>   one — has now been satisfied rather than reversed. The example this
+>   doc describes in-test (a 0.40 grounding floor for
+>   `career.lens.acme-l4-eval [haiku+mechanical]`) was recorded by a
+>   named human through `minibench correct` and committed, so the gate
+>   exercises the corrections path on every CI run.
+
 ## Strata Affected
 
 - `kernel` (domain — correction records + corrections-aware diff), `cli`
