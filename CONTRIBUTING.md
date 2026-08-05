@@ -18,6 +18,12 @@ cd minibench
 cargo test --workspace --all-targets
 ```
 
+> **The build is not yet open.** `Cargo.toml` still pins two private repositories — `thesium-app-foundation` and
+> `workbench-contract` — so `cargo` cannot fetch them without Miniforge access and the commands above will fail at the
+> dependency fetch. Neither holds anything proprietary; they are being extracted into a public seam repository, after
+> which a plain clone builds. Until that lands, external pull requests will fail CI at the same step. Issues and
+> reviews are welcome in the meantime.
+
 The `standards/miniforge` submodule holds the engineering rules this repo follows. It is public, so no credentials are
 needed. If you cloned without `--recurse-submodules`:
 
