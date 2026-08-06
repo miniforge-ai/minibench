@@ -261,10 +261,10 @@ dependencies = [
  "async-trait",
  "axum",
  "minibench-kernel",
+ "miniforge-app-foundation-contracts",
+ "miniforge-app-foundation-data-plane",
  "serde",
  "serde_json",
- "thesium-app-foundation-contracts",
- "thesium-app-foundation-data-plane",
  "tokio",
  "tower 0.4.13",
  "workbench-contract",
@@ -278,6 +278,29 @@ dependencies = [
  "serde_json",
  "time",
  "workbench-contract",
+]
+
+[[package]]
+name = "miniforge-app-foundation-contracts"
+version = "0.1.0"
+source = "git+https://github.com/miniforge-ai/miniforge-app-foundation.git?rev=7ce4a41932a2ea0036d8741fe69a661c270cd6af#7ce4a41932a2ea0036d8741fe69a661c270cd6af"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "miniforge-app-foundation-data-plane"
+version = "0.1.0"
+source = "git+https://github.com/miniforge-ai/miniforge-app-foundation.git?rev=7ce4a41932a2ea0036d8741fe69a661c270cd6af#7ce4a41932a2ea0036d8741fe69a661c270cd6af"
+dependencies = [
+ "async-trait",
+ "axum",
+ "miniforge-app-foundation-contracts",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -477,29 +500,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0bf256ce5efdfa370213c1dabab5935a12e49f2c58d15e9eac2870d3b4f27263"
 
 [[package]]
-name = "thesium-app-foundation-contracts"
-version = "0.1.0"
-source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=20eaee2621694964a780282b5ee35ad496fb84d1#20eaee2621694964a780282b5ee35ad496fb84d1"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "thesium-app-foundation-data-plane"
-version = "0.1.0"
-source = "git+ssh://git@github.com/miniforge-ai/thesium-app-foundation.git?rev=20eaee2621694964a780282b5ee35ad496fb84d1#20eaee2621694964a780282b5ee35ad496fb84d1"
-dependencies = [
- "async-trait",
- "axum",
- "serde",
- "serde_json",
- "thesium-app-foundation-contracts",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "thiserror"
 version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -667,11 +667,11 @@ dependencies = [
 [[package]]
 name = "workbench-contract"
 version = "0.1.0"
-source = "git+ssh://git@github.com/miniforge-ai/workbench-contract.git?rev=5212f32ed9bdbfbc982e9ff746352c2f190d8e12#5212f32ed9bdbfbc982e9ff746352c2f190d8e12"
+source = "git+https://github.com/miniforge-ai/miniforge-app-foundation.git?rev=7ce4a41932a2ea0036d8741fe69a661c270cd6af#7ce4a41932a2ea0036d8741fe69a661c270cd6af"
 dependencies = [
+ "miniforge-app-foundation-contracts",
  "serde",
  "serde_json",
- "thesium-app-foundation-contracts",
 ]
 
 [[package]]

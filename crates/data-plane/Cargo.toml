@@ -21,7 +21,7 @@ edition.workspace = true
 license.workspace = true
 version.workspace = true
 authors.workspace = true
-description = "Minibench DataPlaneProvider serving WorkbenchSnapshotV1 over the thesium-app-foundation five-route data plane"
+description = "Minibench DataPlaneProvider serving WorkbenchSnapshotV1 over the miniforge-app-foundation five-route data plane"
 
 [lib]
 name = "minibench_data_plane"
@@ -37,8 +37,8 @@ axum = { workspace = true }
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thesium-app-foundation-contracts = { workspace = true }
-thesium-app-foundation-data-plane = { workspace = true }
+miniforge-app-foundation-contracts = { workspace = true }
+miniforge-app-foundation-data-plane = { workspace = true }
 workbench-contract = { workspace = true }
 minibench-kernel = { workspace = true }
 

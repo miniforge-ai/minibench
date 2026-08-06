@@ -18,21 +18,22 @@ miniforge adapter┼──▶ workbench-contract ◀── Minibench (this repo)
    time adapter ─┘        (pure types)         data plane + kernel + UI
 ```
 
-Minibench is the **third consumer** of `thesium-app-foundation` (after
-risk and career), and exists partly to prove that foundation's
-domain-neutral claim and pull its per-side rewiring to completion.
+Both the contract and the transport envelope live in
+[`miniforge-app-foundation`](https://github.com/miniforge-ai/miniforge-app-foundation),
+the public seam. Minibench is one consumer of it; your adapter is
+another. Neither depends on the other.
 
 ## What's here (first slice)
 
 | Crate | Purpose |
 |---|---|
-| `crates/data-plane` | A `DataPlaneProvider` (from `thesium-app-foundation-data-plane`) serving `WorkbenchSnapshotV1` bodies over the foundation's five routes, plus a thin binary that binds loopback `:8789` |
+| `crates/data-plane` | A `DataPlaneProvider` (from `miniforge-app-foundation-data-plane`) serving `WorkbenchSnapshotV1` bodies over the foundation's five routes, plus a thin binary that binds loopback `:8789` |
 | `crates/kernel` | The generic, tenant-agnostic kernel — reads only `workbench-contract`. First op: `summarize` (status roll-up + blocking-gate detection) |
 
-The data plane speaks **JSON over HTTP/loopback** — the shipped Thesium
-app-stack transport — reusing the foundation router verbatim. Snapshot
-bodies are the typed `workbench-contract` shapes, re-applied at the
-consuming edges (kernel, and later the Swift shell).
+The data plane speaks **JSON over HTTP/loopback**, reusing the foundation
+router verbatim. Snapshot bodies are the typed `workbench-contract`
+shapes, re-applied at the consuming edges (kernel, and later the Swift
+shell).
 
 ## Live feeds
 
@@ -160,9 +161,12 @@ curl -s http://127.0.0.1:8789/v1/snapshots/latest | jq .product
 ```
 
 Loads snapshots from `MINIBENCH_SNAPSHOT_DIR` (default `fixtures`).
-`thesium-app-foundation` and `workbench-contract` are pinned **git
-dependencies** (private; `.cargo/config` sets `git-fetch-with-cli` for the
-SSH fetch) — no sibling checkout needed to build.
+
+`miniforge-app-foundation` supplies both the contract and the transport
+envelope, pinned to a published git rev over HTTPS. It is public, so a
+plain `git clone` and `cargo test` work with no credentials, no sibling
+checkout, and no cargo configuration. Bump the rev to adopt upstream
+changes.
 
 ## Ports
 

@@ -21,7 +21,8 @@ that product adapters emit.
 ## Boundaries — the dependency arrow only points inward
 
 - Consumes `workbench-contract` (typed snapshot) and
-  `thesium-app-foundation-{contracts,data-plane}` (envelope + router).
+  `miniforge-app-foundation-{contracts,data-plane}` (envelope + router),
+  all three from the public `miniforge-app-foundation` seam repo.
 - **Never** depends on a product domain crate (`risk-core`,
   `theseus-engine`, miniforge `supervisory-state`). The kernel reads only
   the contract — that's what keeps it tenant-agnostic. A test that needs
