@@ -4,59 +4,57 @@
   Copyright 2025-2026 Christopher Lester. Licensed under Apache 2.0.
 -->
 
-# fix: restore the Apache-2.0 appendix so GitHub detects the licence
+# fix: restore the Apache-2.0 appendix template
 
-## The symptom
+> **This document was rewritten after the change merged.** Its first version claimed GitHub could not detect the
+> licence and that this change fixed it. That diagnosis was wrong. The change is still correct, for a smaller reason.
+> What follows is the corrected account; the original is in this file's git history.
 
-With the repository public, `gh repo view --json licenseInfo` reports **`not detected`**. GitHub shows no licence badge,
-and the licence is invisible to the dependency and compliance scanners that read that field. For a repository whose
-purpose is to be built against by outside adapter authors, an undetectable licence reads as an unanswered question about
-whether the code may be used at all.
+## What this change does
 
-## The cause
+`LICENSE` had the Apache-2.0 appendix's placeholder line replaced with a filled-in project block:
 
-`LICENSE` was copied from the public `miniforge` repository, whose copy had the appendix's placeholder line replaced
-with a filled-in project notice. Minibench inherited that, and PR #22 then retitled the block for Minibench rather than
-removing it.
-
-The appendix is part of the licence *template*: it instructs a reader on how to apply the licence to their own work, and
-its `Copyright [yyyy] [name of copyright owner]` line is a placeholder that is meant to stay a placeholder. Substituting
-real values turns four lines of template into four lines of foreign content, and GitHub's `licensee` — which normalises
-and hashes the text against known licence bodies — stops matching.
-
-Removed:
-
-```
-   Title: Minibench
-   Subtitle: workbench app shell — data plane + generic kernel + CLI
-   Author: Christopher Lester
-   Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai)
+```diff
+-   Title: Minibench
+-   Subtitle: workbench app shell — data plane + generic kernel + CLI
+-   Author: Christopher Lester
+-   Copyright 2025-2026 Christopher Lester (christopher@miniforge.ai)
++   Copyright [yyyy] [name of copyright owner]
 ```
 
-Restored:
+The appendix is part of the licence *template*. It instructs a reader on how to apply the licence to their own work,
+and `Copyright [yyyy] [name of copyright owner]` is a placeholder that is meant to stay a placeholder — substituting
+real values makes the instructions read as though they were about this project rather than about the reader's. After
+this change the file matches a canonical Apache-2.0 text exactly, verified by a whitespace-normalised diff against
+`fnv-1.0.7/LICENSE-APACHE`.
 
-```
-   Copyright [yyyy] [name of copyright owner]
-```
+Nothing is lost. The real attribution is unchanged where it belongs: the Apache-2.0 header on all 42 source files,
+`license = "Apache-2.0"` in `Cargo.toml`, and the README's licence section.
 
-Nothing is lost. The actual copyright attribution lives where it belongs and is unchanged: the Apache-2.0 header on all
-42 source files, the `license = "Apache-2.0"` field in `Cargo.toml`, and the README's licence section.
+## The wrong diagnosis, and why it was wrong
 
-## On the earlier review
+The change was opened on the premise that GitHub reported the licence as undetected and that the modified appendix was
+the cause. Both halves were false.
 
-Copilot flagged this on PR #22 and offered two options — keep the standard placeholder boilerplate, or update the
-filled-in fields to match Minibench. I took the second. The first was correct, and this restores it.
+The evidence for "undetected" was `gh repo view --json licenseInfo`, which returns `null`. That reads GitHub's GraphQL
+`licenseInfo` field. The REST equivalent, `gh api repos/OWNER/REPO -q .license.spdx_id`, returns `Apache-2.0` — and
+did so before this change.
 
-## Verification
+| Repository | REST `.license.spdx_id` | GraphQL `licenseInfo.spdxId` |
+|---|---|---|
+| `minibench` | `Apache-2.0` | `null` |
+| `miniforge-app-foundation` | `Apache-2.0` | `null` |
+| `miniforge` | `Apache-2.0` | `null` |
 
-The appendix now matches a canonical Apache-2.0 text verbatim, modulo the leading indentation the rest of this file
-uses (diffed with whitespace normalised against `fnv-1.0.7/LICENSE-APACHE`). The terms body was already unmodified.
+The decisive case is the third row. `miniforge` still carries the modified appendix and was never touched by this work,
+and GitHub detects its licence anyway. So the appendix modification never blocked detection, and the GraphQL `null` is a
+property of that field across these repositories rather than a signal about any LICENSE file.
 
-Detection is a GitHub-side computation on the default branch, so it can only be confirmed after merge.
+The error was accepting a single tool's output as the measurement without first checking it against a control. Running
+the same query against a repository whose licence is known-detected would have shown the instrument was at fault in
+under a minute.
 
-## Same defect elsewhere
+## Lesson for the next licence or metadata check
 
-`miniforge-app-foundation` has an identical block, fixed in the same way alongside this.
-
-The public `miniforge` repository is the origin of the pattern and is also reported as `not detected`. It is outside this
-repository's scope; flagged for a separate fix.
+Use `gh api repos/OWNER/REPO -q .license.spdx_id`, not `gh repo view --json licenseInfo`. When a check reports a
+problem, run it against a known-good control before acting on it.
