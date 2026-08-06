@@ -63,15 +63,23 @@ building rather than after — a stale cargo config would have masked exactly th
 | `bb validate-gate` | 11 snapshots, exit 0 |
 | `grep -c thesium Cargo.lock` | 0 |
 
-One caveat worth stating plainly: `miniforge-app-foundation` is currently **private**, so today's successful fetch used
-the developer's own credentials. The genuine no-credentials test is only possible once that repository is public. Both
-repositories are staged for the same flip.
+The first draft of this PR carried a caveat: the seam repository was still private, so the local fetch had used the
+developer's own credentials and proved nothing about a credential-free build. CI was red for exactly that reason, and
+the PR sat as a draft until it was resolved.
+
+`miniforge-app-foundation` is now public, and the claim is verified rather than asserted:
+
+- An anonymous clone succeeds — `GIT_TERMINAL_PROMPT=0` with global and system git config suppressed, so no credential
+  helper, no `insteadOf` rewrite, and no stored token could have assisted it — and lands on
+  `7ce4a41932a2ea0036d8741fe69a661c270cd6af`, the exact rev this workspace pins.
+- CI passes on this branch with no token step, no `.cargo/config.toml`, and no SSH rewrite: checkout, build, test,
+  regression gate, and validation gate all green.
 
 ## After this merge
 
 Nothing in Minibench blocks the flip. Remaining, outside this repository:
 
-1. Flip `miniforge-app-foundation` to public, then Minibench.
+1. Flip Minibench to public. (`miniforge-app-foundation` is already public.)
 2. Delete the now-unused `MINIFORGE_CI_BOT_APPID` / `MINIFORGE_CI_BOT_KEY` secrets from this repository's settings if
    no other workflow uses them.
 3. Relocate the career reference adapters out of the private `workbench-contract` repository into the career repository
