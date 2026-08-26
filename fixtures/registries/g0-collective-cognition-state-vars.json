@@ -1,0 +1,221 @@
+{
+  "schema_version" : "state_var_registry/v1",
+  "registry_id" : "g0-collective-cognition-state-vars",
+  "version" : "2026.08.25.1",
+  "product" : "miniforge",
+  "state_vars" : [ {
+    "id" : "g0.run.success",
+    "description" : "Binary N15 §7 success: the exported artifact passes every must-pass test in the sealed acceptance suite and violates zero hard constraints. A run exporting no artifact scores 0. This is the only variable Gate G0 §8.4 reads.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "compliance",
+    "value_type" : "boolean",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 1.0,
+      "fail" : 0.0
+    },
+    "gate_effects" : {
+      "fail" : "blocks_gate_pass"
+    },
+    "score_components" : [ "must_pass_tests_passed", "must_pass_tests_total", "hard_constraint_violations", "artifact_exported" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "acceptance-suite-run" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.success_partial",
+    "description" : "Fraction of must-pass acceptance tests passed. Diagnostic only — N15 §7 forbids gates from reading this; it exists to tell a near-miss from a total failure when interpreting a null result.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "sufficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 1.0,
+      "warn" : 0.5
+    },
+    "gate_effects" : { },
+    "score_components" : [ "must_pass_tests_passed", "must_pass_tests_total" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "acceptance-suite-run" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.coverage",
+    "description" : "Fraction of the requirement checklist the run addressed, judge-scored. The judge model is pinned per experiment and disjoint from every participant model.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "sufficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 0.9,
+      "warn" : 0.6
+    },
+    "gate_effects" : { },
+    "score_components" : [ "requirements_addressed", "requirements_total" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "coverage-judgement" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.contradiction_handling",
+    "description" : "Fraction of injected specification contradictions whose resolution matches the sealed intended resolution, judge-scored against the sealed key.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "sufficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 1.0,
+      "warn" : 0.5
+    },
+    "gate_effects" : { },
+    "score_components" : [ "contradictions_resolved_as_sealed", "contradictions_injected" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "contradiction-judgement" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.constraint_violations",
+    "description" : "Count of hard-constraint violations in the exported artifact, from the invariant tests plus judge review. Any violation forces g0.run.success to 0.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "compliance",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 0.0,
+      "fail" : 1.0
+    },
+    "gate_effects" : {
+      "fail" : "blocks_gate_pass"
+    },
+    "score_components" : [ "violations" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "acceptance-suite-run" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.decision_record_quality",
+    "description" : "Rubric score for the run's decision record: what was decided, against which alternatives, and why. Judge-scored.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "sufficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 0.8,
+      "warn" : 0.5
+    },
+    "gate_effects" : { },
+    "score_components" : [ "rubric_score", "rubric_max" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "decision-record-judgement" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.overhead_fraction",
+    "description" : "Coordination tokens divided by total participant tokens (N15 §4). Coordination means workspace operations, projection rendering, and relay or synthesis scaffolding; judge and scoring tokens sit outside participant budgets entirely.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "efficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 0.3,
+      "warn" : 0.5
+    },
+    "gate_effects" : { },
+    "score_components" : [ "coordination_tokens", "object_level_tokens" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "run-accounting" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.hypothesis_diversity",
+    "description" : "Count of live alternatives at budget midpoint — the anti-anchoring signal (N15 §7). Emitted by C4 through C7; both members of an ablation pair must emit it so blinding's effect on alternative preservation is itself measurable.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "sufficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 2.0,
+      "warn" : 1.0
+    },
+    "gate_effects" : { },
+    "score_components" : [ "live_alternatives_at_midpoint" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "run-accounting" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.cost",
+    "description" : "Realized normalized cost as a fraction of the tier allowance, from the manifest-pinned price table. The tier is a ceiling, so this never exceeds 1.0 and underspend from early termination is a valid recorded result, never grounds for exclusion (N15 §4). The bands are efficiency reporting only — cost carries no gate effect, and a run consuming its full allowance is not thereby a failure.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "efficiency",
+    "value_type" : "number",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 0.8,
+      "warn" : 1.0
+    },
+    "gate_effects" : { },
+    "score_components" : [ "realized_cost", "tier_allowance" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "run-accounting" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  }, {
+    "id" : "g0.run.failure_categorised",
+    "description" : "Whether this run carries a failure code from the closed set — specification misread, premature consensus, livelock or loop, lost context, verification skipped, coordination overhead exhaustion, or other — or succeeded and needs none. Boolean by design: the category string itself lives in the failure-coding evidence ref, and this variable exists so an uncategorised failure is visible rather than silent. Judge-assigned with human spot-check.",
+    "product" : "miniforge",
+    "area" : "collective-cognition",
+    "kind" : "compliance",
+    "value_type" : "boolean",
+    "lifecycle" : "experimental",
+    "version" : "1.0.0",
+    "owner" : "miniforge/research",
+    "thresholds" : {
+      "pass" : 1.0,
+      "fail" : 0.0
+    },
+    "gate_effects" : { },
+    "score_components" : [ "categorised" ],
+    "evidence_requirements" : {
+      "required_refs" : [ "failure-coding" ],
+      "min_count" : 1,
+      "must_include_source_role" : true
+    }
+  } ]
+}
