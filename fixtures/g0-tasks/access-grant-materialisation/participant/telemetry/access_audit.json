@@ -1,0 +1,52 @@
+{
+  "_note": "SYNTHETIC telemetry, invented for benchmark use. Not a real production sample.",
+  "service": "pinegate-workspace",
+  "metric": "document_access_decisions",
+  "definition": "Every access decision the service resolved as allowed, sampled over the period.",
+  "collected_over": "30 days",
+  "allowed_access_count": 4200000,
+
+  "allowed_access_by_membership_state": [
+    {
+      "state": "current_team_member",
+      "description": "The user was a member of the owning team at the time of access.",
+      "count": 4111800,
+      "fraction": 0.979
+    },
+    {
+      "state": "left_team_but_still_resolved_as_member",
+      "description": "The user had already left the owning team. The membership lookup still returned them as a member, so access was allowed.",
+      "count": 88200,
+      "fraction": 0.021
+    }
+  ],
+
+  "stale_membership": {
+    "cause": "The membership directory is a cache, refreshed asynchronously from the upstream identity service. A membership row can outlive the membership.",
+    "observed_staleness_seconds": {
+      "p50": 240,
+      "p90": 3600,
+      "p99": 18900,
+      "max": 21600
+    },
+    "observed_staleness_window_max_human": "6 hours",
+    "note": "Every one of the 88200 accesses above happened inside this window. None of them appear anywhere as a grant: the service had nothing to write down, so there is no record that these users could see these documents."
+  },
+
+  "team_size": {
+    "definition": "Distinct users listed as members of one team.",
+    "mean": 14,
+    "p50": 9,
+    "p75": 21,
+    "p90": 88,
+    "p99": 260
+  },
+
+  "documents_per_team": {
+    "definition": "Documents owned by one team.",
+    "mean": 340,
+    "p50": 121,
+    "p90": 1180,
+    "p99": 4900
+  }
+}

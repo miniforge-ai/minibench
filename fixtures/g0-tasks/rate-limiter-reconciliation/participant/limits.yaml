@@ -1,0 +1,5 @@
+# Bellwether gateway limits.
+# Customer-editable. Support runbooks reference these key names.
+
+global_rate: 800
+per_user_rate: 10

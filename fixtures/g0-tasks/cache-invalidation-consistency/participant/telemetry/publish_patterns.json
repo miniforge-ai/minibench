@@ -1,0 +1,31 @@
+{
+  "_note": "SYNTHETIC telemetry, invented for benchmark use. Not a real production sample.",
+  "metric": "document_republish_frequency",
+  "definition": "Republishes per document after its first publish, and the share of reads each group receives.",
+  "collected_over": "30 days",
+  "document_count": 1000000,
+  "summary": {
+    "documents_never_republished_after_first_publish": 942000,
+    "fraction_never_republished": 0.942,
+    "documents_republished_at_least_once": 58000,
+    "hot_documents": 8000,
+    "hot_document_share_of_corpus": 0.008,
+    "hot_document_share_of_republishes": 0.71,
+    "mean_republishes_per_hot_document_per_hour": 12,
+    "read_share_of_never_republished_documents": 0.61
+  },
+  "republishes_per_document_histogram": [
+    {"republishes": "0", "documents": 942000},
+    {"republishes": "1-3", "documents": 41200},
+    {"republishes": "4-20", "documents": 8800},
+    {"republishes": "21-200", "documents": 4000},
+    {"republishes": "201+", "documents": 4000}
+  ],
+  "hot_set_definition": "The 21-200 and 201+ buckets combined: 8000 documents, 0.8% of the corpus.",
+  "republish_events_in_window": 3186000,
+  "republish_events_attributable_to_hot_set": 2262060,
+  "notes": [
+    "Reads are spread across the whole corpus, not concentrated on the republished documents: 61% of reads target documents that are never republished after first publish.",
+    "The hot set is small and its members are republished repeatedly within the same hour."
+  ]
+}

@@ -5,3 +5,8 @@
 # SwiftPM (app/)
 /app/.build/
 .swiftpm/
+
+# Python fixture tooling artefacts (fixtures/g0-tasks)
+__pycache__/
+*.py[cod]
+.pytest_cache/

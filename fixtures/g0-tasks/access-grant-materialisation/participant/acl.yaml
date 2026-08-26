@@ -1,0 +1,5 @@
+# Pinegate workspace access-control settings. SYNTHETIC fixture.
+# Customer-editable. Support runbooks reference these key names.
+
+default_visibility: team
+max_grants_per_document: 250

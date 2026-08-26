@@ -1,0 +1,70 @@
+{
+  "schema_version": "g0_task/v1",
+  "task_id": "dispatch-retry-idempotency",
+  "version": "1.0.0",
+  "synthetic": true,
+  "domain": "background job dispatch",
+  "summary": "Reconcile a durability requirement that every failure be retried against an exactly-once requirement on side effects, without breaking a frozen configuration contract.",
+
+  "contradictions": [
+    {
+      "id": "C1",
+      "between": ["stakeholders/operations.md", "stakeholders/data_integrity.md"],
+      "statement": "Retrying every failure and applying each job's side effect exactly once are jointly unsatisfiable without both deduplication by job_id and classification of failures — deduplication alone still burns the retry budget on jobs that cannot succeed, and classification alone still double-applies on re-submission.",
+      "requires_evidence": true
+    },
+    {
+      "id": "C2",
+      "between": ["stakeholders/support.md", "stakeholders/data_integrity.md"],
+      "statement": "max_retries cannot both keep its plain meaning of 'attempts for any failure' and become a bound on transient retries only; the configuration contract forbids resolving this by renaming or adding required keys.",
+      "requires_evidence": false
+    }
+  ],
+
+  "hard_constraints": [
+    {"id": "HC1", "statement": "A file containing only max_retries and retry_backoff_seconds loads and works.", "checked_by": "test_invariants.py"},
+    {"id": "HC2", "statement": "For any job_id the sink's side effect is applied at most once, across any number of submissions.", "checked_by": "test_invariants.py"},
+    {"id": "HC3", "statement": "A job that refuses transiently and then succeeds ends applied; recoverable work is never dropped.", "checked_by": "test_invariants.py"},
+    {"id": "HC4", "statement": "Standard library only.", "checked_by": "test_invariants.py"},
+    {"id": "HC5", "statement": "submit(job_id, payload, now) keeps injected time; no clock reads and no sleeps — backoff is computed.", "checked_by": "test_invariants.py"}
+  ],
+
+  "interacting_constraints_note": "HC2 and HC3 are the interacting pair. The seeded implementation satisfies HC3 and violates HC2; a dispatcher that never retries satisfies HC2 and violates HC3. Neither document names the trade-off. Permanent-rejection behaviour is deliberately not a hard constraint — it encodes the sealed resolution rather than a mechanical property, so it is checked by test_resolution.py.",
+
+  "evidence": {
+    "source": "telemetry/failure_classes.json",
+    "fact_only_available_there": "88.6% of refusals are transient and every sampled one eventually succeeded; 11.4% are permanent and none ever succeeded at any retry depth, with all six retry-storm incidents driven by permanent failures. Completion latency reaches a p99 of 47 seconds and re-submission after a lost acknowledgement was observed as late as 104 seconds.",
+    "why_it_matters": "The stakeholder documents never say which failures are recoverable — Operations asserts they all are. Without the telemetry there is no basis for making permanent rejections terminal, and no figure to size the dedupe window against: the natural document-derived window is the retry span, max_retries * retry_backoff_seconds, which is 8 seconds under the shipped configuration and has forgotten the job long before the re-submission arrives.",
+    "checked_by": "test_evidence.py"
+  },
+
+  "acceptance_suite": {
+    "must_pass": ["test_resolution.py", "test_invariants.py", "test_regression.py"],
+    "scored_not_must_pass": ["test_evidence.py"],
+    "note": "N15 §6.4 — must-pass designation is pinned with the manifest. success = all must-pass green AND zero hard-constraint violations."
+  },
+
+  "distractors": [
+    {
+      "path": "sealed/distractors/literal-operations",
+      "reading": "Deduplicate, then retry every failure up to max_retries: the literal Operations requirement. Never double-applies, never loses recoverable work, and spends the full retry budget on jobs the telemetry says can never succeed.",
+      "must_fail": true
+    },
+    {
+      "path": "sealed/distractors/literal-integrity",
+      "reading": "Deduplicate and never retry: the literal Data Integrity requirement. Exactly-once by never trying twice, at the cost of dropping the 88.6% of refusals that would have succeeded.",
+      "must_fail": true
+    }
+  ],
+
+  "deliverables": [
+    {"path": "src/", "description": "The change satisfying the reconciled requirements."},
+    {"path": "DECISIONS.md", "description": "Decision record: what was decided, alternatives rejected, and exactly which failures max_retries still governs and which it no longer governs."}
+  ],
+
+  "calibration": {
+    "solvability": "sealed/reference passes the full suite; no LLM involved.",
+    "discrimination": "PENDING — baseline saturation/floor check requires runs at both tiers (N15 §6.3(2)).",
+    "status": "solvability-proven"
+  }
+}
