@@ -46,7 +46,11 @@ def test_access_is_denied_across_the_observed_staleness_window():
 
 
 def test_the_stale_read_leaves_an_auditable_trail():
-    """The compliance question: what could this user see, and until when?"""
+    """The compliance question, asked of the 88200 unrecorded accesses.
+
+    What could this user see, and until when? A store that forgets a grant
+    the moment it is revoked answers the second half and loses the first.
+    """
     control, directory = build(documents={"doc-0": "team-a"})
     control.join_team("u-0", "team-a", JOIN_TIME)
     control.leave_team("u-0", "team-a", LEAVE_TIME)

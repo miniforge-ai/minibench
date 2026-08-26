@@ -89,6 +89,16 @@ def test_leaving_a_team_revokes_the_grant_record():
             )
 
 
+def test_rejoining_restores_access():
+    """Membership changes both ways, more than once, in any order."""
+    control, _ = build(documents={"doc-0": "team-a"})
+    control.join_team("u-0", "team-a", JOIN_TIME)
+    control.leave_team("u-0", "team-a", LEAVE_TIME)
+    control.join_team("u-0", "team-a", LEAVE_TIME + 60.0)
+    assert control.can_access("u-0", "doc-0", LEAVE_TIME + 60.0) is True
+    assert active_records_naming(control.grants_for("doc-0"), "u-0")
+
+
 def test_one_user_leaving_does_not_disturb_the_others():
     documents = documents_owned_by("team-a", 2)
     control, _ = build(documents=documents)

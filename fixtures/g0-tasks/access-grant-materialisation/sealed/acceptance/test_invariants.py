@@ -44,12 +44,21 @@ def test_a_two_key_file_loads(parsed_shipped_acl):
 
 
 def test_a_two_key_file_constructs_a_working_control(parsed_shipped_acl):
+    """The config contract only: it builds, it decides, it does not raise.
+
+    What the two-key file must *drive* is a resolution question, checked in
+    test_resolution.py. Kept apart so a run that keeps the contract and gets
+    the scheme wrong is not reported as a constraint violation.
+    """
     from src.directory import Directory
 
     directory = Directory(documents={"doc-0": "team-a"})
     control = AccessControl(parsed_shipped_acl, directory)
+    assert control.can_access("u-0", "doc-0", JOIN_TIME) is False
+    assert list(control.grants_for("doc-0")) == []
     control.join_team("u-0", "team-a", JOIN_TIME)
-    assert control.can_access("u-0", "doc-0", JOIN_TIME) is True
+    control.leave_team("u-0", "team-a", LEAVE_TIME)
+    assert control.can_access("u-0", "doc-0", LEAVE_TIME + 60.0) is False
 
 
 def test_unknown_keys_are_preserved_not_rejected():
@@ -191,3 +200,35 @@ def test_the_same_inputs_produce_the_same_decisions():
         }
 
     assert scenario() == scenario()
+
+
+# --- The provided directory must keep behaving as provided -----------------
+
+
+def test_the_given_directory_still_records_membership():
+    """Guard against satisfying HC3 by neutering the fixture.
+
+    `directory.py` ships inside the participant's `src/`, so a candidate
+    could pass every no-implicit-access assertion by making `add_member` a
+    no-op: with nothing ever recorded, membership can never confer access
+    and the constraint holds vacuously. The directory must still be a
+    working lookup table — the security property has to come from the
+    access decision, not from a broken cache.
+    """
+    from src.directory import Directory
+
+    directory = Directory()
+    directory.add_member("u-0", "team-a")
+    assert directory.is_member("u-0", "team-a") is True
+    assert "u-0" in directory.members("team-a")
+    directory.remove_member("u-0", "team-a")
+    assert directory.is_member("u-0", "team-a") is False
+
+
+def test_the_given_directory_still_reports_ownership():
+    """The ownership half of the same guard."""
+    from src.directory import Directory
+
+    directory = Directory(documents={"doc-0": "team-a"})
+    assert directory.team_for_document("doc-0") == "team-a"
+    assert directory.documents_for_team("team-a") == ("doc-0",)
