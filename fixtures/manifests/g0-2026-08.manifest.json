@@ -1,0 +1,140 @@
+{
+  "schema_version" : "experiment_manifest/v1",
+  "manifest_id" : "g0-2026-08",
+  "experiment_id" : "collective-cognition-g0",
+  "status" : "draft",
+  "gate" : "G0",
+  "spec" : "N15 §8.4",
+  "note" : "PRE-REGISTRATION. N15 §8.3 requires this manifest to be content-addressed and pinned BEFORE any gate run executes. While status is draft the numbers may be revised; once status becomes pinned, any edit voids the experiment and a new manifest_id is required. No gate data may be collected against a draft manifest.",
+
+  "hypothesis" : {
+    "id" : "H4",
+    "statement" : "Persistent typed shared state beats equal-compute sampling, fusion, debate, and relay.",
+    "default_explanation" : "H1-H3 (test-time compute scaling) explain reported multi-agent gains; the burden of proof sits on H4."
+  },
+
+  "gate_rule" : {
+    "description" : "Both conditions must hold for G0 to pass. Either failing means Stage 1 is not built and N14 demotes to Informative per N14 §0.4.",
+    "conditions" : [ {
+      "id" : "capability",
+      "statement" : "C6 beats or ties the best of C1/C2/C4 on g0.run.success at a matched tier on the majority of tasks, with no tier where C6 is dominated across the board.",
+      "majority_threshold" : "3 of 5 tasks"
+    }, {
+      "id" : "attribution",
+      "statement" : "The ablation delta C6 minus C7 on g0.run.success or g0.run.coverage is positive.",
+      "rationale" : "Condition capability alone cannot separate a workspace effect from role structure or budget shape. If the delta is zero the win is not the shared state, and the result must be reported as such."
+    } ],
+    "effect_rule" : "N15 §8.1 — an effect counts only when between-condition spread exceeds within-condition replicate spread on the same (task, tier), consistently across replicates. Otherwise the result is null, and a null is a gate failure rather than a reason to re-run."
+  },
+
+  "statistics" : {
+    "replicates_per_cell" : 3,
+    "interval_method" : "exact-binomial",
+    "significance_claim" : null,
+    "note" : "k=3 supports a pre-registered decision rule, NOT a significance test (N15 §8.1). Reporting MUST NOT use significance language. Roughly 40 runs per cell would be needed for p<0.05 at power 0.8 on a success-rate difference of 0.3; that purchase is deliberately not made here."
+  },
+
+  "conditions" : [ {
+    "id" : "C1",
+    "label" : "single-agent",
+    "required" : true,
+    "definition" : "One agent, one continuous session with tools, full tier budget. Self-directed iteration permitted; no fresh-context resampling; no review structure."
+  }, {
+    "id" : "C2",
+    "label" : "best-of-N",
+    "required" : true,
+    "definition" : "One model, N independent attempts, a selection pass picks the winner.",
+    "attempts" : 4,
+    "note" : "C2's model MUST be the strongest single model available to the C6 population (N15 §3)."
+  }, {
+    "id" : "C4",
+    "label" : "sequential-debate",
+    "required" : true,
+    "definition" : "r debate rounds, each agent sees prior prose, a closing pass commits the answer.",
+    "debate_rounds" : 3
+  }, {
+    "id" : "C6",
+    "label" : "workspace",
+    "required" : true,
+    "definition" : "N14 deliberation run at Stage 0 (file-backed EDN workspace, deterministic structural scheduler).",
+    "visibility" : "full",
+    "roles" : [ "proposer", "skeptic", "synthesizer" ],
+    "note" : "N14 §5.2 scopes the seven-role minimum to Stage 1+; a Stage 0 pilot requires proposer, skeptic, synthesizer."
+  }, {
+    "id" : "C7",
+    "label" : "workspace-ablated",
+    "required" : true,
+    "definition" : "C6 with cross_visibility: none (N14 §4.4). Identical in every other respect — same roles, same budgets, same scheduler, same validation.",
+    "visibility" : "none",
+    "roles" : [ "proposer", "skeptic", "synthesizer" ]
+  } ],
+
+  "excluded_conditions" : [ {
+    "id" : "C3",
+    "reason" : "G0 tests existence and attribution only. C3 and C5 are required at G1 (N15 §8.5)."
+  }, {
+    "id" : "C5",
+    "reason" : "Required at G1. G0 deliberately does not ask whether the graph beats a role relay — only whether it beats compute scaling and whether the effect is attributable to shared state."
+  }, {
+    "id" : "C2s",
+    "reason" : "Required only for an H3 claim (N15 §3). G0 makes no H3 claim."
+  } ],
+
+  "budget" : {
+    "currency" : "normalized-cost",
+    "price_table_hash" : "PENDING — pin before status becomes pinned",
+    "semantics" : "The tier is a hard allowance ceiling, harness-enforced. Overspend cannot occur by construction. Underspend from legitimate early termination is a valid recorded result and is never grounds for exclusion (N15 §4). Conditions are compared at matched allowance, not matched realized spend.",
+    "tiers" : [ {
+      "id" : "tier-1",
+      "allowance_basis" : "2x median C1 completion cost, measured during calibration",
+      "allowance_value" : "PENDING — set from calibration"
+    }, {
+      "id" : "tier-2",
+      "allowance_basis" : "6x median C1 completion cost, measured during calibration",
+      "allowance_value" : "PENDING — set from calibration"
+    } ],
+    "wall_clock_ceiling_minutes" : 90,
+    "closure_allowance" : {
+      "activations" : 1,
+      "note" : "N14 §6.3 — reserved outside the run budgets so forced synthesis at the budget boundary never conflicts with the scheduler's budget prohibition."
+    }
+  },
+
+  "condition_envelope" : {
+    "internal_iteration" : "A condition is a complete policy for spending its tier budget. Self-review, test-and-repair, and review-comment resolution are condition features, executed inside the run and metered by the budget.",
+    "sealed_suite" : "Executed exactly once, after the run terminates, against the exported artifact. No condition receives feedback from it at any point. Oracle-guided repair would leak ground truth to whichever condition loops hardest."
+  },
+
+  "tasks" : {
+    "required_count" : 5,
+    "calibrated" : [ ],
+    "pending" : [ "task fixtures not yet authored — see N15 §6.1-§6.4" ],
+    "calibration_rule" : "N15 §6.3 — a task qualifies for gate use only after (1) the author's reference solution passes the full hidden suite with no LLM involved, (2) baselines at both tiers neither saturate nor floor, and (3) calibration runs are excluded from gate data."
+  },
+
+  "scoring" : {
+    "registry_ref" : {
+      "registry_id" : "g0-collective-cognition-state-vars",
+      "version" : "2026.08.25.1"
+    },
+    "primary" : "g0.run.success",
+    "judge_model" : "PENDING — must be pinned and disjoint from every participant model",
+    "rubric_hash" : "PENDING",
+    "absence_rule" : "A condition producing no evaluation for a state variable (crash, timeout, refusal) surfaces as coverage divergence and scores as failure for that variable — never as a missing cell (N15 §5)."
+  },
+
+  "comparability" : {
+    "grouping_key" : [ "experiment_id", "task source_hashes", "entire variant value excluding label" ],
+    "replicate_key" : "run_id",
+    "label_is_grouping_key" : false,
+    "note" : "N15 §5 — label is display-only. Existing producers emit coarse labels such as \"baseline\", so grouping on it would silently aggregate across tasks and tiers.",
+    "model_identity" : "Single-model conditions populate variant.model; multi-model conditions leave model unset and carry a manifest-pinned population id in a population axis.",
+    "baselines" : "Re-measured concurrently within this experiment at the same (task, tier). Historical baseline results MUST NOT substitute."
+  },
+
+  "estimated_scale" : {
+    "runs" : 150,
+    "derivation" : "5 tasks x 5 conditions x 3 replicates x 2 tiers",
+    "note" : "Calibration runs are additional and excluded from this count."
+  }
+}
