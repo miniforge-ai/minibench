@@ -14,7 +14,7 @@ from src import limiter as limiter_module
 from src.config import parse_limits
 
 SRC = pathlib.Path(limiter_module.__file__).parent
-STDLIB_ALLOWED = {"math", "collections", "time", "typing", "dataclasses", "itertools"}
+STDLIB_ALLOWED = {"math", "collections", "typing", "dataclasses", "itertools"}
 
 
 # --- HC1: configuration contract -------------------------------------------
@@ -105,20 +105,21 @@ def test_allow_keeps_its_injected_time_signature():
     assert parameters[:3] == ["self", "user_id", "now"]
 
 
-def test_admission_reads_no_clock():
-    for path in SRC.glob("*.py"):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                called = "{}.{}".format(node.value.id, node.attr)
-                assert called not in {"time.time", "time.monotonic", "datetime.now"}, (
-                    "{} reads a clock; admission must stay reproducible"
-                    .format(path.name)
-                )
-
-
 def test_the_same_inputs_produce_the_same_admissions():
     users = ["u{}".format(i) for i in range(30)]
     first = interleaved(build(), users, PER_USER_RATE * 2)
     second = interleaved(build(), users, PER_USER_RATE * 2)
     assert first == second
+
+def test_the_source_cannot_reach_a_clock():
+    """HC: injected time. Import ban, not call-shape matching.
+
+    Matching call shapes misses `datetime.datetime.now()` (chained
+    attribute) and `from time import time; time()` (a Call on a Name). A
+    module that never imports a clock cannot read one, whichever form it
+    would have used.
+    """
+    from clockcheck import find_clock_reads
+
+    findings = find_clock_reads(SRC)
+    assert not findings, "source can reach a clock: {}".format(findings)

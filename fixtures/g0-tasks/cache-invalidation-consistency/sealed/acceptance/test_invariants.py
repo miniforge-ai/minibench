@@ -21,8 +21,7 @@ STDLIB_ALLOWED = {
     "heapq",
     "itertools",
     "math",
-    "time",
-    "typing",
+        "typing",
 }
 CLOCK_CALLS = {
     "time.time",
@@ -194,18 +193,6 @@ def test_read_and_publish_keep_their_injected_time_signatures():
     assert publish_parameters[:4] == ["self", "key", "content", "now"]
 
 
-def test_the_cache_reads_no_clock():
-    for path in SRC.glob("*.py"):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                called = "{}.{}".format(node.value.id, node.attr)
-                assert called not in CLOCK_CALLS, (
-                    "{} reads a clock; cache behaviour must stay reproducible"
-                    .format(path.name)
-                )
-
-
 def test_the_same_inputs_produce_the_same_reads():
     document_keys = keys("doc", 30)
 
@@ -244,3 +231,16 @@ def test_max_entries_of_one_still_serves_correct_content():
         assert cache.read(key, 0.0) == revision(key, 1)
     cache.publish(document_keys[0], revision(document_keys[0], 2), 0.0)
     assert cache.read(document_keys[0], 0.0) == revision(document_keys[0], 2)
+
+def test_the_source_cannot_reach_a_clock():
+    """HC: injected time. Import ban, not call-shape matching.
+
+    Matching call shapes misses `datetime.datetime.now()` (chained
+    attribute) and `from time import time; time()` (a Call on a Name). A
+    module that never imports a clock cannot read one, whichever form it
+    would have used.
+    """
+    from clockcheck import find_clock_reads
+
+    findings = find_clock_reads(SRC)
+    assert not findings, "source can reach a clock: {}".format(findings)

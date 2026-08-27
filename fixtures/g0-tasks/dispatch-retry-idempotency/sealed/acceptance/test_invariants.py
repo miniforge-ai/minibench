@@ -25,7 +25,7 @@ from src.config import parse_dispatch_config
 from src.sink import Sink, always_permanent, transient_then_ok
 
 SRC = pathlib.Path(dispatcher_module.__file__).parent
-STDLIB_ALLOWED = {"math", "collections", "time", "typing", "dataclasses", "itertools"}
+STDLIB_ALLOWED = {"math", "collections", "typing", "dataclasses", "itertools"}
 CLOCK_ATTRIBUTES = {
     "time.time",
     "time.time_ns",
@@ -201,35 +201,6 @@ def test_submit_keeps_its_injected_time_signature():
     assert parameters[:4] == ["self", "job_id", "payload", "now"]
 
 
-def test_dispatch_reads_no_clock():
-    for path in SRC.glob("*.py"):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                referenced = "{}.{}".format(node.value.id, node.attr)
-                assert referenced not in CLOCK_ATTRIBUTES, (
-                    "{} reads a clock or sleeps; dispatch must stay reproducible"
-                    .format(path.name)
-                )
-
-
-def test_dispatch_never_sleeps():
-    for path in SRC.glob("*.py"):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            called = None
-            if isinstance(node.func, ast.Attribute):
-                called = node.func.attr
-            elif isinstance(node.func, ast.Name):
-                called = node.func.id
-            assert called not in BANNED_CALLS, (
-                "{} calls {!r}; backoff must be computed, never slept"
-                .format(path.name, called)
-            )
-
-
 def test_the_same_inputs_produce_the_same_results():
     script_a, transient_ids, permanent_ids = telemetry_shaped_script(total=100)
     script_b, _, _ = telemetry_shaped_script(total=100)
@@ -251,3 +222,16 @@ def test_a_permanent_rejection_applies_nothing():
     assert result["status"] == "failed"
     assert sink.effect_count("j1") == 0
     assert dispatcher.effects() == []
+
+def test_the_source_cannot_reach_a_clock():
+    """HC: injected time. Import ban, not call-shape matching.
+
+    Matching call shapes misses `datetime.datetime.now()` (chained
+    attribute) and `from time import time; time()` (a Call on a Name). A
+    module that never imports a clock cannot read one, whichever form it
+    would have used.
+    """
+    from clockcheck import find_clock_reads
+
+    findings = find_clock_reads(SRC)
+    assert not findings, "source can reach a clock: {}".format(findings)

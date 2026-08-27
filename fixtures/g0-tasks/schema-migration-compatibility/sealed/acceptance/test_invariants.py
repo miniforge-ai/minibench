@@ -25,7 +25,7 @@ from src.ingest import Ingestor
 
 SRC = pathlib.Path(ingest_module.__file__).parent
 STDLIB_ALLOWED = {"math", "collections", "typing", "dataclasses", "itertools", "json"}
-CLOCK_MODULES = {"time", "datetime", "calendar", "zoneinfo"}
+CLOCK_MODULES = {"zoneinfo"}
 CLOCK_READS = {
     "time.time",
     "time.monotonic",
@@ -157,26 +157,6 @@ def test_no_third_party_imports():
 # --- HC5: no clock reads ---------------------------------------------------
 
 
-def test_no_clock_module_is_imported():
-    for path, tree in _source_trees():
-        for root in _import_roots(tree):
-            assert root not in CLOCK_MODULES, (
-                "{} imports {!r}; deprecation must be driven by observed data, "
-                "not by a date".format(path.name, root)
-            )
-
-
-def test_no_clock_is_read():
-    for path, tree in _source_trees():
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                called = "{}.{}".format(node.value.id, node.attr)
-                assert called not in CLOCK_READS, (
-                    "{} reads a clock; ingestion must stay reproducible"
-                    .format(path.name)
-                )
-
-
 def test_ingest_keeps_its_injected_client_version_signature():
     parameters = list(inspect.signature(Ingestor.ingest).parameters)
     assert parameters[:3] == ["self", "record", "client_version"]
@@ -195,3 +175,16 @@ def test_the_same_inputs_produce_the_same_stored_records():
         return [fingerprint(entry) for entry in ingestor.stored()]
 
     assert run() == run()
+
+def test_the_source_cannot_reach_a_clock():
+    """HC: injected time. Import ban, not call-shape matching.
+
+    Matching call shapes misses `datetime.datetime.now()` (chained
+    attribute) and `from time import time; time()` (a Call on a Name). A
+    module that never imports a clock cannot read one, whichever form it
+    would have used.
+    """
+    from clockcheck import find_clock_reads
+
+    findings = find_clock_reads(SRC)
+    assert not findings, "source can reach a clock: {}".format(findings)

@@ -39,6 +39,8 @@ def _stage(task_dir, candidate_dir):
     for source in candidate_dir.glob("*.py"):
         shutil.copy(source, staged / "src" / source.name)
     shutil.copytree(task_dir / "sealed" / "acceptance", staged / "acceptance")
+    # One canonical injected-time checker, staged beside every task's suite.
+    shutil.copy(ROOT / "clockcheck.py", staged / "acceptance" / "clockcheck.py")
     (staged / "__init__.py").touch()
     (staged / "src" / "__init__.py").touch()
     (staged / "tests" / "__init__.py").touch()

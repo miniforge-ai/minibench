@@ -27,11 +27,9 @@ SRC = pathlib.Path(access_module.__file__).parent
 STDLIB_ALLOWED = {
     "collections",
     "dataclasses",
-    "datetime",
     "itertools",
     "math",
-    "time",
-    "typing",
+        "typing",
 }
 
 
@@ -163,26 +161,6 @@ def test_the_access_methods_keep_their_injected_time_signatures():
         )
 
 
-def test_the_access_decision_reads_no_clock():
-    forbidden = {
-        "time.time",
-        "time.monotonic",
-        "time.perf_counter",
-        "datetime.now",
-        "datetime.utcnow",
-        "date.today",
-    }
-    for path in sorted(SRC.glob("*.py")):
-        tree = ast.parse(path.read_text())
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name):
-                called = "{}.{}".format(node.value.id, node.attr)
-                assert called not in forbidden, (
-                    "{} reads a clock; access decisions must stay reproducible"
-                    .format(path.name)
-                )
-
-
 def test_the_same_inputs_produce_the_same_decisions():
     def scenario():
         documents = documents_owned_by("team-a", 4)
@@ -232,3 +210,16 @@ def test_the_given_directory_still_reports_ownership():
     directory = Directory(documents={"doc-0": "team-a"})
     assert directory.team_for_document("doc-0") == "team-a"
     assert directory.documents_for_team("team-a") == ("doc-0",)
+
+def test_the_source_cannot_reach_a_clock():
+    """HC: injected time. Import ban, not call-shape matching.
+
+    Matching call shapes misses `datetime.datetime.now()` (chained
+    attribute) and `from time import time; time()` (a Call on a Name). A
+    module that never imports a clock cannot read one, whichever form it
+    would have used.
+    """
+    from clockcheck import find_clock_reads
+
+    findings = find_clock_reads(SRC)
+    assert not findings, "source can reach a clock: {}".format(findings)
