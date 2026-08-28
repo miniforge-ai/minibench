@@ -1,0 +1,5 @@
+# Meridian document cache settings.
+# Customer-editable. Support runbooks reference these key names.
+
+ttl_seconds: 300
+max_entries: 5000

@@ -1,0 +1,5 @@
+# Stonecrop dispatcher settings.
+# Customer-editable. Support runbooks reference these key names.
+
+max_retries: 4
+retry_backoff_seconds: 2

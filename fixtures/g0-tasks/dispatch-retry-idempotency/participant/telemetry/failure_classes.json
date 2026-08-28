@@ -1,0 +1,50 @@
+{
+  "_note": "SYNTHETIC telemetry, invented for benchmark use. Not a real production sample. The service, its failure taxonomy, and every figure below are fabricated.",
+  "metric": "dispatch_failure_classification",
+  "definition": "Every sink refusal observed by the dispatcher, classified by the error type the sink raised, and followed to its eventual outcome.",
+  "collected_over": "30 days",
+  "failed_attempts_sampled": 41230,
+  "classes": [
+    {
+      "class": "transient",
+      "raised_as": "TransientError",
+      "share_of_failures": 0.886,
+      "attempts": 36530,
+      "examples": ["upstream_timeout", "upstream_503", "connection_reset"],
+      "attempts_that_succeeded_on_a_later_try": 36530,
+      "eventual_success_rate": 1.0,
+      "attempts_to_success": {"p50": 1, "p90": 2, "p99": 3, "max": 4},
+      "note": "Every sampled transient failure succeeded on a later attempt. None needed more than four tries."
+    },
+    {
+      "class": "permanent",
+      "raised_as": "PermanentError",
+      "share_of_failures": 0.114,
+      "attempts": 4700,
+      "examples": ["payload_validation_rejected", "unknown_job_type", "schema_version_unsupported"],
+      "attempts_that_succeeded_on_a_later_try": 0,
+      "eventual_success_rate": 0.0,
+      "max_observed_retry_depth": 64,
+      "note": "No sampled permanent failure ever succeeded, at any retry depth. The deepest observed retry chain tried the same job 64 times and it was rejected 64 times. Retrying these does not recover work; it only consumes queue capacity."
+    }
+  ],
+  "retry_storm_incidents": {
+    "count": 6,
+    "all_driven_by_class": "permanent",
+    "driven_by_transient": 0,
+    "note": "All six queue-saturation incidents in the window began with a batch of permanently-rejected jobs being retried until the queue backed up behind them. Not one incident was caused by retrying a transient failure."
+  },
+  "job_completion_latency_seconds": {
+    "definition": "Wall time from submit to the sink acknowledging the side effect.",
+    "p50": 3,
+    "p90": 19,
+    "p99": 47,
+    "max": 118
+  },
+  "acknowledgement_loss": {
+    "observed_rate": 0.0042,
+    "definition": "The sink applied the side effect but the acknowledgement did not reach the caller, so the caller re-submitted the same job_id.",
+    "resubmission_delay_seconds": {"p50": 8, "p90": 41, "p99": 96, "max": 104},
+    "note": "Re-submission was observed as late as 104 seconds after the original submit — well past the p99 completion latency of 47 seconds. A dispatcher that only remembers a job for as long as that job could still be retrying will have forgotten it by the time the re-submission arrives."
+  }
+}

@@ -107,9 +107,20 @@
 
   "tasks" : {
     "required_count" : 5,
-    "calibrated" : [ ],
-    "pending" : [ "task fixtures not yet authored — see N15 §6.1-§6.4" ],
-    "calibration_rule" : "N15 §6.3 — a task qualifies for gate use only after (1) the author's reference solution passes the full hidden suite with no LLM involved, (2) baselines at both tiers neither saturate nor floor, and (3) calibration runs are excluded from gate data."
+    "fixture_root" : "fixtures/g0-tasks/",
+    "registered" : [
+      {"task_id" : "rate-limiter-reconciliation", "version" : "1.0.0", "domain" : "admission control"},
+      {"task_id" : "cache-invalidation-consistency", "version" : "1.0.0", "domain" : "cache coherence"},
+      {"task_id" : "dispatch-retry-idempotency", "version" : "1.0.0", "domain" : "job dispatch"},
+      {"task_id" : "schema-migration-compatibility", "version" : "1.0.0", "domain" : "schema evolution"},
+      {"task_id" : "access-grant-materialisation", "version" : "1.0.0", "domain" : "access control"}
+    ],
+    "calibration_rule" : "N15 §6.3 — a task qualifies for gate use only after (1) the author's reference solution passes the full hidden suite with no LLM involved, (2) baselines at both tiers neither saturate nor floor, and (3) calibration runs are excluded from gate data.",
+    "calibration_status" : {
+      "solvability_and_discrimination" : "proven offline for all five by fixtures/g0-tasks/validate.py — reference passes, seeded repository fails, every distractor rejected, sealed boundary clean",
+      "baseline_saturation_floor" : "PENDING — N15 §6.3(2) needs runs at both tiers, which cannot happen before this manifest is pinned",
+      "note" : "A task is not eligible for gate use until baseline_saturation_floor is resolved for it. Registration here is not eligibility."
+    }
   },
 
   "scoring" : {

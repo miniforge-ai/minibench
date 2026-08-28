@@ -1,0 +1,70 @@
+{
+  "schema_version": "g0_task/v1",
+  "task_id": "access-grant-materialisation",
+  "version": "1.0.0",
+  "synthetic": true,
+  "domain": "document access control",
+  "summary": "Reconcile instant, admin-free team onboarding against an audit requirement that every access trace to an explicit grant, without breaking a frozen configuration contract.",
+
+  "contradictions": [
+    {
+      "id": "C1",
+      "between": ["stakeholders/product.md", "stakeholders/security.md"],
+      "statement": "Access derived from team membership at access time is what makes joining instant and admin-free, and it is exactly what Security forbids: a lookup leaves no record of what was visible, to whom, or when. Explicit grants normally arrive by an administrator step, which Product rules out.",
+      "requires_evidence": true
+    },
+    {
+      "id": "C2",
+      "between": ["stakeholders/support.md", "stakeholders/product.md"],
+      "statement": "max_grants_per_document is inert while access is derived and becomes load-bearing the moment grants are materialised — a team can carry more members than a document is configured to hold. The configuration contract forbids resolving this by renaming keys or adding required ones.",
+      "requires_evidence": false
+    }
+  ],
+
+  "hard_constraints": [
+    {"id": "HC1", "statement": "A file containing only default_visibility and max_grants_per_document loads and works.", "checked_by": "test_invariants.py"},
+    {"id": "HC2", "statement": "Every allowed access traces to a grant record: if can_access is True, grants_for(document_id) holds an active record naming that user.", "checked_by": "test_invariants.py"},
+    {"id": "HC3", "statement": "No implicit access: a directory reporting a user as a team member, with no grant present, must not confer access.", "checked_by": "test_invariants.py"},
+    {"id": "HC4", "statement": "Standard library only.", "checked_by": "test_invariants.py"},
+    {"id": "HC5", "statement": "can_access(user_id, document_id, now), join_team(user_id, team_id, now) and leave_team(user_id, team_id, now) keep injected time; no clock reads.", "checked_by": "test_invariants.py"}
+  ],
+
+  "interacting_constraints_note": "HC2 and HC3 are the interacting pair, and HC2 alone is not enough: the seeded implementation violates both, while a scheme that renders grant records from current membership on demand satisfies HC2 and still violates HC3. Only HC3 separates a recorded decision from a rendered lookup. Neither document names that distinction.",
+
+  "evidence": {
+    "source": "telemetry/access_audit.json",
+    "fact_only_available_there": "2.1% of allowed accesses (88200 of 4200000) were by users who had already left the owning team but still resolved as members through a cache stale by up to six hours; team size reaches a p99 of 260 against a shipped max_grants_per_document of 250.",
+    "why_it_matters": "The documents state that the directory is a cache and that the cap exists. Only the telemetry shows that the lag is real and load-bearing, that none of those accesses were recorded anywhere, and that a routine team is larger than the shipped cap. A document-only solution has no reason to treat revocation as an act with a timestamp, or to have handled a team that overruns the cap at all.",
+    "checked_by": "test_evidence.py"
+  },
+
+  "acceptance_suite": {
+    "must_pass": ["test_resolution.py", "test_invariants.py", "test_regression.py"],
+    "scored_not_must_pass": ["test_evidence.py"],
+    "note": "N15 §6.4 — must-pass designation is pinned with the manifest. success = all must-pass green AND zero hard-constraint violations."
+  },
+
+  "distractors": [
+    {
+      "path": "sealed/distractors/literal-product",
+      "reading": "Access-time membership check, with grant records rendered from current membership on demand. Instant onboarding, and every allowed access appears to name a grant — but the records are a view of the lookup, so a stale row still confers access. Violates HC3.",
+      "must_fail": true
+    },
+    {
+      "path": "sealed/distractors/literal-security",
+      "reading": "Explicit grants only, provisioned by a separate administrator call. Auditable and stale-proof; joining a team grants nothing, which is the onboarding failure Product filed against.",
+      "must_fail": true
+    }
+  ],
+
+  "deliverables": [
+    {"path": "src/", "description": "The change satisfying the reconciled requirements."},
+    {"path": "DECISIONS.md", "description": "Decision record: what was decided, alternatives rejected, and exactly what happens when max_grants_per_document is reached."}
+  ],
+
+  "calibration": {
+    "solvability": "sealed/reference passes the full suite; no LLM involved.",
+    "discrimination": "PENDING — baseline saturation/floor check requires runs at both tiers (N15 §6.3(2)).",
+    "status": "solvability-proven"
+  }
+}

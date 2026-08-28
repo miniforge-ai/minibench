@@ -1,0 +1,27 @@
+{
+  "_note": "SYNTHETIC telemetry, invented for benchmark use. Not a real production sample.",
+  "metric": "concurrent_active_users_per_second",
+  "definition": "Distinct user ids that sent at least one request during a one-second window.",
+  "collected_over": "7 days",
+  "window_count": 604800,
+  "summary": {
+    "min": 4,
+    "p50": 30,
+    "p75": 52,
+    "p90": 79,
+    "p95": 95,
+    "p99": 120,
+    "max": 128
+  },
+  "histogram": [
+    {"active_users": "0-15", "windows": 121000},
+    {"active_users": "16-30", "windows": 189400},
+    {"active_users": "31-50", "windows": 138900},
+    {"active_users": "51-79", "windows": 96300},
+    {"active_users": "80-99", "windows": 41200},
+    {"active_users": "100-119", "windows": 12100},
+    {"active_users": "120-128", "windows": 5900}
+  ],
+  "windows_at_or_above_80_active": 59200,
+  "fraction_of_windows_at_or_above_80_active": 0.0979
+}

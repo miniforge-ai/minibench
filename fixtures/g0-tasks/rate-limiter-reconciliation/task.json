@@ -1,0 +1,70 @@
+{
+  "schema_version": "g0_task/v1",
+  "task_id": "rate-limiter-reconciliation",
+  "version": "1.0.0",
+  "synthetic": true,
+  "domain": "admission control",
+  "summary": "Reconcile a per-user fairness guarantee against a hard capacity ceiling and a frozen configuration contract.",
+
+  "contradictions": [
+    {
+      "id": "C1",
+      "between": ["stakeholders/product.md", "stakeholders/platform.md"],
+      "statement": "A guaranteed 10 rps per user cannot hold for every user while the gateway never exceeds 800 rps — the two are jointly satisfiable for at most 80 concurrent users, and the population exceeds that.",
+      "requires_evidence": true
+    },
+    {
+      "id": "C2",
+      "between": ["stakeholders/support.md", "stakeholders/product.md"],
+      "statement": "per_user_rate cannot both keep its plain customer-facing meaning and become an upper bound on a degrading entitlement; the configuration contract forbids resolving this by renaming or adding required keys.",
+      "requires_evidence": false
+    }
+  ],
+
+  "hard_constraints": [
+    {"id": "HC1", "statement": "A file containing only global_rate and per_user_rate loads and works.", "checked_by": "test_invariants.py"},
+    {"id": "HC2", "statement": "Admissions in any one-second window never exceed global_rate.", "checked_by": "test_invariants.py"},
+    {"id": "HC3", "statement": "A user under its entitlement is never rejected while the window is under global_rate.", "checked_by": "test_invariants.py"},
+    {"id": "HC4", "statement": "Standard library only.", "checked_by": "test_invariants.py"},
+    {"id": "HC5", "statement": "allow(user_id, now) keeps injected time; no clock reads.", "checked_by": "test_invariants.py"}
+  ],
+
+  "interacting_constraints_note": "HC2 and HC3 are the interacting pair. The seeded implementation satisfies HC2 and violates HC3; an independent per-user bucket satisfies HC3 and violates HC2. Neither document names the trade-off.",
+
+  "evidence": {
+    "source": "telemetry/active_users.json",
+    "fact_only_available_there": "Concurrent active users reach 128, and 9.79% of windows sit at or above the 80-user crossover.",
+    "why_it_matters": "The crossover at 80 follows from the configuration arithmetic, but nothing in the stakeholder documents says the population ever exceeds it. A document-only solution has no reason to handle the degraded regime at all.",
+    "checked_by": "test_evidence.py"
+  },
+
+  "acceptance_suite": {
+    "must_pass": ["test_resolution.py", "test_invariants.py", "test_regression.py"],
+    "scored_not_must_pass": ["test_evidence.py"],
+    "note": "N15 §6.4 — must-pass designation is pinned with the manifest. success = all must-pass green AND zero hard-constraint violations."
+  },
+
+  "distractors": [
+    {
+      "path": "sealed/distractors/literal-product",
+      "reading": "Independent per-user buckets: the literal Product requirement. Fair, oversubscribes the ceiling past 80 active users.",
+      "must_fail": true
+    },
+    {
+      "path": "sealed/distractors/literal-platform",
+      "reading": "Global-only bucket: the literal Platform requirement. Holds the ceiling, starves quiet tenants.",
+      "must_fail": true
+    }
+  ],
+
+  "deliverables": [
+    {"path": "src/", "description": "The change satisfying the reconciled requirements."},
+    {"path": "DECISIONS.md", "description": "Decision record: what was decided, alternatives rejected, and the exact condition under which per_user_rate is not delivered."}
+  ],
+
+  "calibration": {
+    "solvability": "sealed/reference passes the full suite; no LLM involved.",
+    "discrimination": "PENDING — baseline saturation/floor check requires runs at both tiers (N15 §6.3(2)).",
+    "status": "solvability-proven"
+  }
+}

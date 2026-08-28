@@ -1,0 +1,5 @@
+# Quillon ingest configuration.
+# Customer-editable. Support runbooks reference these key names.
+
+schema_version: 3
+reject_unknown_fields: false

@@ -1,0 +1,70 @@
+{
+  "schema_version": "g0_task/v1",
+  "task_id": "schema-migration-compatibility",
+  "version": "1.0.0",
+  "synthetic": true,
+  "domain": "record ingestion",
+  "summary": "Land a newly required schema field against a client population that cannot all send it, without renaming a frozen configuration contract.",
+
+  "contradictions": [
+    {
+      "id": "C1",
+      "between": ["stakeholders/product.md", "stakeholders/clients.md"],
+      "statement": "'Every record must carry region' and 'a v1 client must keep ingesting' are jointly unsatisfiable as stated — v1 builds have no region field to send, so one of the two requirements gives way for as long as v1 traffic exists.",
+      "requires_evidence": true
+    },
+    {
+      "id": "C2",
+      "between": ["stakeholders/support.md", "stakeholders/product.md"],
+      "statement": "schema_version cannot both keep its documented meaning — the single schema every record is validated against — and become the selector for a per-client-version validation path; the configuration contract forbids resolving this by renaming or adding required keys.",
+      "requires_evidence": false
+    }
+  ],
+
+  "hard_constraints": [
+    {"id": "HC1", "statement": "A file containing only schema_version and reject_unknown_fields loads and works.", "checked_by": "test_invariants.py"},
+    {"id": "HC2", "statement": "A valid v1 record, carrying no region, is accepted and never raises.", "checked_by": "test_invariants.py"},
+    {"id": "HC3", "statement": "Every accepted record is retrievable from stored() with all client-sent fields preserved, and a record whose region was never sent is distinguishable from one a client declared as \"unknown\".", "checked_by": "test_invariants.py"},
+    {"id": "HC4", "statement": "Standard library only.", "checked_by": "test_invariants.py"},
+    {"id": "HC5", "statement": "No clock reads: ingest(record, client_version) keeps its signature and nothing in src consults the date or time, so retirement cannot be date-driven.", "checked_by": "test_invariants.py"}
+  ],
+
+  "interacting_constraints_note": "HC2 and HC3 are the interacting pair. The seeded implementation violates HC2 and satisfies HC3 for the records it accepts; making region optional for every client satisfies HC2 and violates HC3, because an absent region and a client-declared \"unknown\" become the same stored record. Neither document names the trade-off.",
+
+  "evidence": {
+    "source": "telemetry/client_versions.json",
+    "fact_only_available_there": "v1 clients still account for 3.2% of records and the share is falling by only 0.15 percentage points per week — roughly 18 weeks to reach 0.5% — with 41% of that traffic concentrated in two accounts on multi-year change-control cycles.",
+    "why_it_matters": "The Clients document says releases roll out slowly and that v1 will one day be retired, but never says how much v1 traffic remains or how fast it is going away. Without the telemetry there is no basis for choosing between a fixed sunset date and a share-based condition, and no way to know that a date picked this quarter would break a live population.",
+    "checked_by": "test_evidence.py"
+  },
+
+  "acceptance_suite": {
+    "must_pass": ["test_resolution.py", "test_invariants.py", "test_regression.py"],
+    "scored_not_must_pass": ["test_evidence.py"],
+    "note": "N15 §6.4 — must-pass designation is pinned with the manifest. success = all must-pass green AND zero hard-constraint violations."
+  },
+
+  "distractors": [
+    {
+      "path": "sealed/distractors/literal-product",
+      "reading": "One required schema for every client: the literal Product requirement, and the seeded reading carried forward. Reporting reconciles, every v1 record is rejected.",
+      "must_fail": true
+    },
+    {
+      "path": "sealed/distractors/literal-clients",
+      "reading": "region optional for everyone, absent regions filled with the same placeholder a client may send: the literal Clients requirement. v1 keeps working, Product's requirement is enforced against nobody, and provenance is lost.",
+      "must_fail": true
+    }
+  ],
+
+  "deliverables": [
+    {"path": "src/", "description": "The change satisfying the reconciled requirements."},
+    {"path": "DECISIONS.md", "description": "Decision record: what was decided, alternatives rejected, what schema_version selects now, and the exact condition under which the pre-region path is retired."}
+  ],
+
+  "calibration": {
+    "solvability": "sealed/reference passes the full suite; no LLM involved.",
+    "discrimination": "PENDING — baseline saturation/floor check requires runs at both tiers (N15 §6.3(2)).",
+    "status": "solvability-proven"
+  }
+}

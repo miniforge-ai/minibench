@@ -1,0 +1,71 @@
+{
+  "schema_version": "g0_task/v1",
+  "task_id": "cache-invalidation-consistency",
+  "version": "1.0.0",
+  "synthetic": true,
+  "domain": "caching",
+  "summary": "Reconcile an absolute freshness guarantee against a cache hit-rate budget and a frozen configuration contract.",
+
+  "contradictions": [
+    {
+      "id": "C1",
+      "between": ["stakeholders/editorial.md", "stakeholders/platform.md"],
+      "statement": "Content can never be older than the latest publish, and self-inflicted cache misses are a defect — the seeded global flush satisfies the first by manufacturing the second, and nothing in the documents says how much cache the flush destroys.",
+      "requires_evidence": true
+    },
+    {
+      "id": "C2",
+      "between": ["stakeholders/support.md", "stakeholders/editorial.md"],
+      "statement": "ttl_seconds cannot both remain the mechanism that bounds staleness and stop being the mechanism that makes a publish visible; the configuration contract forbids resolving this by renaming or adding required keys.",
+      "requires_evidence": false
+    }
+  ],
+
+  "hard_constraints": [
+    {"id": "HC1", "statement": "A file containing only ttl_seconds and max_entries loads and works.", "checked_by": "test_invariants.py"},
+    {"id": "HC2", "statement": "A read after a publish for that key never returns pre-publish content.", "checked_by": "test_invariants.py"},
+    {"id": "HC3", "statement": "Publishing one key does not evict unrelated keys; they still serve without a store round-trip.", "checked_by": "test_invariants.py"},
+    {"id": "HC4", "statement": "Standard library only.", "checked_by": "test_invariants.py"},
+    {"id": "HC5", "statement": "read(key, now) and publish(key, content, now) keep injected time; no clock reads.", "checked_by": "test_invariants.py"},
+    {"id": "HC6", "statement": "max_entries still bounds the number of retained entries.", "checked_by": "test_invariants.py"}
+  ],
+
+  "interacting_constraints_note": "HC2 and HC3 are the interacting pair. The seeded implementation satisfies HC2 and violates HC3; a TTL-only cache satisfies HC3 and violates HC2. Neither document names the trade-off.",
+
+  "evidence": {
+    "source": "telemetry/publish_patterns.json",
+    "fact_only_available_there": "94.2% of documents are never republished after first publish and take 61% of reads, while the 0.8% hot set carries 71% of republishes at a mean of 12 per hot document per hour.",
+    "why_it_matters": "The stakeholder documents establish that self-inflicted misses are undesirable, but not their scale. Only the telemetry shows that a global flush discards an overwhelmingly cold-but-still-correct cache to fix one document — the fact that makes per-key invalidation necessary rather than merely tidy.",
+    "checked_by": "test_evidence.py"
+  },
+
+  "acceptance_suite": {
+    "must_pass": ["test_resolution.py", "test_invariants.py", "test_regression.py"],
+    "scored_not_must_pass": ["test_evidence.py"],
+    "note": "N15 §6.4 — must-pass designation is pinned with the manifest. success = all must-pass green AND zero hard-constraint violations."
+  },
+
+  "distractors": [
+    {
+      "path": "sealed/distractors/literal-editorial",
+      "reading": "Global flush on every write: the literal Editorial requirement. Never stale, and it evicts the 94.2% of the corpus the write did not touch.",
+      "must_fail": true
+    },
+    {
+      "path": "sealed/distractors/literal-platform",
+      "reading": "TTL-only, no invalidation: the literal Platform requirement. Excellent hit rate, serves a retracted revision for the whole TTL window.",
+      "must_fail": true
+    }
+  ],
+
+  "deliverables": [
+    {"path": "src/", "description": "The change satisfying the reconciled requirements."},
+    {"path": "DECISIONS.md", "description": "Decision record: what was decided, alternatives rejected, and exactly what ttl_seconds now means."}
+  ],
+
+  "calibration": {
+    "solvability": "sealed/reference passes the full suite; no LLM involved.",
+    "discrimination": "PENDING — baseline saturation/floor check requires runs at both tiers (N15 §6.3(2)).",
+    "status": "solvability-proven"
+  }
+}
